@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>创业助手 · 公司文件整理系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/vue-router@4/dist/vue-router.global.prod.js"></script>
+<script src="https://unpkg.com/vue-i18n@9/dist/vue-i18n.global.prod.js"></script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app">
+  <div v-if="appReady" class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">{{ $t('app_title') }}</div>
+        <div class="project-switcher" v-if="currentProject">
+          <div class="project-switcher-name" @click="showProjectMenu = !showProjectMenu">
+            <span>{{ currentProject.name }}</span>
+            <span class="project-switcher-arrow">{{ showProjectMenu ? '▲' : '▼' }}</span>
+          </div>
+          <div class="mode-badge">
+            {{ currentProject.mode === 'early_team' ? $t('mode_early_team') : $t('mode_established') }}
+          </div>
+          <div class="project-menu" v-if="showProjectMenu">
+            <div v-for="p in appState.projects" :key="p.id"
+              :class="['project-menu-item', p.id === currentProject.id ? 'active' : '']"
+              @click="switchProject(p)">
+              {{ p.name }}
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav v-if="currentProject">
+        <router-link v-if="currentProject.mode === 'early_team'" :to="`/project/${currentProject.id}/founders`">
+          {{ $t('nav_founders') }}
+        </router-link>
+        <router-link :to="`/project/${currentProject.id}/cabinet`">{{ $t('nav_cabinet') }}</router-link>
+        <router-link v-if="currentProject.mode === 'established'" :to="`/project/${currentProject.id}/ldd`">
+          {{ $t('nav_ldd') }}
+        </router-link>
+        <router-link v-if="currentProject.mode === 'established'" :to="`/project/${currentProject.id}/export`">
+          {{ $t('nav_export') }}
+        </router-link>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="btn-lang" @click="toggleLang">{{ locale === 'zh' ? 'EN' : '中文' }}</button>
+        <button class="btn-new-project" @click="$router.push('/init')">+ 新项目</button>
+      </div>
+    </aside>
+    <main class="main-content">
+      <router-view :key="$route.fullPath" @project-created="onProjectCreated" @project-updated="loadProjects"></router-view>
+    </main>
+  </div>
+  <div v-else class="loading">加载中...</div>
+</div>
+
+<script src="/components/ProjectInit.js"></script>
+<script src="/components/FounderList.js"></script>
+<script src="/components/FounderDetail.js"></script>
+<script src="/components/CategoryTree.js"></script>
+<script src="/components/FileScanner.js"></script>
+<script src="/components/LddView.js"></script>
+<script src="/components/ExportPanel.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

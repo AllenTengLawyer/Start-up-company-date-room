@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+jinja2==3.1.4
+aiofiles==23.2.1
+weasyprint==62.3
+openpyxl==3.1.5
+pydantic==2.9.2

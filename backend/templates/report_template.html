@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>DD就绪报告 - {{ project.name }}</title>
+<style>
+  body { font-family: "Microsoft YaHei", "SimHei", Arial, sans-serif; font-size: 12px; color: #333; margin: 0; padding: 20px; }
+  h1 { font-size: 20px; color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 8px; }
+  h2 { font-size: 14px; color: #2c5282; margin-top: 24px; margin-bottom: 8px; background: #ebf8ff; padding: 6px 10px; border-left: 4px solid #3182ce; }
+  .meta { color: #666; font-size: 11px; margin-bottom: 16px; }
+  .score-box { background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 6px; padding: 12px 20px; margin-bottom: 20px; display: inline-block; }
+  .score-num { font-size: 36px; font-weight: bold; color: #276749; }
+  .score-label { font-size: 12px; color: #276749; }
+  .stats { display: flex; gap: 20px; margin-top: 8px; font-size: 11px; }
+  .stat { text-align: center; }
+  .stat-n { font-size: 18px; font-weight: bold; }
+  .stat-provided .stat-n { color: #276749; }
+  .stat-partial .stat-n { color: #c05621; }
+  .stat-pending .stat-n { color: #c53030; }
+  .stat-na .stat-n { color: #718096; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
+  th { background: #edf2f7; text-align: left; padding: 5px 8px; border: 1px solid #cbd5e0; }
+  td { padding: 5px 8px; border: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) { background: #f7fafc; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+  .badge-high { background: #fed7d7; color: #c53030; }
+  .badge-medium { background: #fefcbf; color: #744210; }
+  .badge-low { background: #e2e8f0; color: #4a5568; }
+  .status-provided { color: #276749; font-weight: bold; }
+  .status-partial { color: #c05621; font-weight: bold; }
+  .status-pending { color: #c53030; }
+  .status-na { color: #718096; }
+  .files-list { font-size: 10px; color: #4a5568; }
+  .page-break { page-break-before: always; }
+  @media print { body { padding: 10px; } }
+</style>
+</head>
+<body>
+<h1>法律尽职调查就绪报告</h1>
+<div class="meta">
+  公司：{{ project.name }} &nbsp;|&nbsp;
+  生成时间：{% now 'Asia/Shanghai', '%Y-%m-%d %H:%M' %} &nbsp;|&nbsp;
+  仅供内部使用
+</div>
+
+<div class="score-box">
+  <div class="score-num">{{ score_pct }}%</div>
+  <div class="score-label">DD 就绪度评分</div>
+  <div class="stats">
+    <div class="stat stat-provided"><div class="stat-n">{{ provided }}</div><div>已提供</div></div>
+    <div class="stat stat-partial"><div class="stat-n">{{ partial }}</div><div>部分提供</div></div>
+    <div class="stat stat-pending"><div class="stat-n">{{ pending }}</div><div>未提供</div></div>
+    <div class="stat stat-na"><div class="stat-n">{{ na }}</div><div>不适用</div></div>
+  </div>
+</div>
+
+{% for section in sections %}
+<h2>§{{ section.section_no }} {{ section.items[0].title.split('：')[0] if section.items else '' }}</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:6%">编号</th>
+      <th style="width:38%">事项</th>
+      <th style="width:8%">风险</th>
+      <th style="width:10%">状态</th>
+      <th style="width:38%">已提供文件 / 说明</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in section.items %}
+    <tr>
+      <td>{{ item.item_no }}</td>
+      <td>{{ item.title }}</td>
+      <td>
+        {% if item.risk_level == 'high' %}<span class="badge badge-high">高</span>
+        {% elif item.risk_level == 'medium' %}<span class="badge badge-medium">中</span>
+        {% else %}<span class="badge badge-low">低</span>{% endif %}
+      </td>
+      <td>
+        {% if item.status == 'provided' %}<span class="status-provided">✓ 已提供</span>
+        {% elif item.status == 'partial' %}<span class="status-partial">△ 部分提供</span>
+        {% elif item.status == 'na' %}<span class="status-na">— 不适用</span>
+        {% else %}<span class="status-pending">✗ 未提供</span>{% endif %}
+      </td>
+      <td>
+        {% if item.files %}
+        <div class="files-list">{% for f in item.files %}📄 {{ f }}<br>{% endfor %}</div>
+        {% endif %}
+        {% if item.statement %}<div style="font-size:10px;color:#4a5568;margin-top:2px;">{{ item.statement }}</div>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+</body>
+</html>

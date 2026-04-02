@@ -1,0 +1,167 @@
+[
+  {
+    "section_no": "1",
+    "section_title": "集团公司基本文件",
+    "section_title_en": "Corporate Documents",
+    "items": [
+      {"item_no": "1.1", "title": "集团公司最新股权结构图（含所有企业成员、持股平台、持股比例）", "title_en": "Latest group shareholding structure chart", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.2", "title": "集团公司最新工商营业执照", "title_en": "Latest business license(s)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.3", "title": "工商调档材料（自设立以来）及最新公司章程", "title_en": "Full SAMR filing records since incorporation + latest articles of association", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.4", "title": "自设立至今历次股东会及董事会决议", "title_en": "All shareholder and board resolutions since incorporation", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "1.5", "title": "海外公司设立文件（如有）：设立文件、注册证书、章程、股东名册、董事名册、发改委/商务部审批备案、境外直接投资外汇登记", "title_en": "Overseas entity documents (if any): incorporation docs, certificates, articles, shareholder/director registers, NDRC/MOFCOM approvals, ODI forex registration", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "1.6", "title": "各集团公司注册资本实缴情况说明及银行回单/验资报告", "title_en": "Paid-in capital status and bank receipts / capital verification reports", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "1.7", "title": "持股平台（合伙企业）设立文件及合伙协议", "title_en": "Holding platform (partnership) incorporation documents and partnership agreements", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "1.8", "title": "历史融资全部交易文件（增资/认购协议、股东协议、投资协议、补充协议、side letter及全部附件）", "title_en": "All historical financing transaction documents (capital increase/subscription agreements, shareholder agreements, investment agreements, supplements, side letters and all attachments)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.9", "title": "历史股权转让协议、纳税凭证及对价支付凭证", "title_en": "Historical equity transfer agreements, tax payment certificates and consideration payment receipts", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.10", "title": "股权代持、表决权委托、一致行动人、股权质押等安排的相关文件（如有）", "title_en": "Documents for nominee holding, voting proxy, concert party, equity pledge arrangements (if any)", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "1.11", "title": "创始人、董监高及核心员工对外投资及任职情况说明（含竞争关系说明）", "title_en": "External investments and positions of founders, directors, supervisors, senior management and key employees (including competition analysis)", "item_type": "statement", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.12", "title": "股权激励计划文件：期权计划/ESOP、授予协议、董事会/股东会批准决议", "title_en": "Equity incentive plan documents: option plan/ESOP, grant agreements, board/shareholder approval resolutions", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "1.13", "title": "离职员工股权回购协议及支付凭证（如有）", "title_en": "Share repurchase agreements and payment receipts for departed employees (if any)", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "1.14", "title": "股东涉诉、被执行、股权冻结情况说明", "title_en": "Statement on shareholders involved in litigation, enforcement, or equity freeze", "item_type": "statement", "risk_level": "high", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "2",
+    "section_title": "业务与重大合同",
+    "section_title_en": "Business & Material Contracts",
+    "items": [
+      {"item_no": "2.1", "title": "公司业务介绍（含业务模块、收入构成、业务流/资金流/合同流/开票流、盈利模式）及BP", "title_en": "Business overview (modules, revenue breakdown, business/fund/contract/invoice flows, profit model) and BP", "item_type": "statement", "risk_level": "medium", "is_required": 1},
+      {"item_no": "2.2", "title": "主要供应商、客户及合作方名单（近三年前十大）", "title_en": "Key supplier, customer and partner lists (top 10 for past 3 years)", "item_type": "list", "risk_level": "medium", "is_required": 1},
+      {"item_no": "2.3", "title": "核心供应商、客户及合作方前十大业务合同（按年度累计及单笔金额口径）", "title_en": "Top 10 contracts with core suppliers, customers and partners (by annual cumulative and single contract value)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "2.4", "title": "公司产品清单（含在研及商业化产品名称、简介、资质/认证情况）", "title_en": "Product list (in-development and commercialized: name, description, qualifications/certifications)", "item_type": "list", "risk_level": "low", "is_required": 1},
+      {"item_no": "2.5", "title": "完整合同台账（合同名称、签署方、日期、期限、类别、金额、付款节点、履行情况）", "title_en": "Complete contract register (name, parties, date, term, category, amount, payment milestones, performance status)", "item_type": "list", "risk_level": "medium", "is_required": 1},
+      {"item_no": "2.6", "title": "政府资质、补助、许可证、税收优惠、产品认证文件", "title_en": "Government qualifications, subsidies, licenses, tax incentives, product certification documents", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "2.7", "title": "公司常用合同模板（采购、销售、代理等）", "title_en": "Standard contract templates (procurement, sales, agency, etc.)", "item_type": "file", "risk_level": "low", "is_required": 0},
+      {"item_no": "2.8", "title": "产品/技术/软件/设计开发协议及研发协议（委托开发、合作开发）", "title_en": "Product/technology/software/design development agreements and R&D agreements (commissioned or collaborative)", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "2.9", "title": "外部顾问协议（FA、财务顾问、技术顾问、市场/销售顾问等）", "title_en": "External advisor agreements (FA, financial, technical, market/sales advisors)", "item_type": "file", "risk_level": "low", "is_required": 0},
+      {"item_no": "2.10", "title": "关联交易合同及背景说明", "title_en": "Related-party transaction contracts and background explanation", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "2.11", "title": "含独家合作、排他性约定的重大合同", "title_en": "Material contracts with exclusivity or exclusive IP license clauses", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "2.12", "title": "并购重组及重大资产买卖协议（如有）", "title_en": "M&A, restructuring and major asset transaction agreements (if any)", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "2.13", "title": "其他重大合同（商务合作、广告宣传、设备采购、重大资产收购等）", "title_en": "Other material contracts (commercial cooperation, advertising, equipment procurement, major asset acquisition)", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "2.14", "title": "现有或潜在合同违约情况说明", "title_en": "Statement on existing or potential contract breaches", "item_type": "statement", "risk_level": "high", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "3",
+    "section_title": "借款和担保",
+    "section_title_en": "Loans & Guarantees",
+    "items": [
+      {"item_no": "3.1", "title": "尚未履行完毕的借款/贷款合同（含股东贷款、过桥贷款、委托贷款、关联借款）及担保合同（抵押、质押、保证）", "title_en": "Outstanding loan/credit agreements (shareholder loans, bridge loans, entrusted loans, related-party loans) and guarantee agreements (mortgage, pledge, guarantee)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "3.2", "title": "创始人及核心高管个人重大债务情况说明", "title_en": "Statement on founders' and senior management's personal material debt situations", "item_type": "statement", "risk_level": "medium", "is_required": 1},
+      {"item_no": "3.3", "title": "公司最新征信报告（中国人民银行征信中心）", "title_en": "Latest company credit report (PBOC Credit Reference Center)", "item_type": "file", "risk_level": "medium", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "4",
+    "section_title": "财务和会计",
+    "section_title_en": "Finance & Accounting",
+    "items": [
+      {"item_no": "4.1", "title": "最新财务报表（资产负债表、损益表、现金流量表）及各单体财务报表；最近一年审计报告（如有）", "title_en": "Latest financial statements (balance sheet, P&L, cash flow) including individual entity statements; most recent audit report (if any)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "4.2", "title": "是否存在内外账说明（如有，说明原因及差异金额）", "title_en": "Statement on whether dual-set books exist (if so, explain reason and discrepancy amount)", "item_type": "statement", "risk_level": "high", "is_required": 1},
+      {"item_no": "4.3", "title": "个人收款账户使用情况说明及余额清单（如有）", "title_en": "Statement on personal accounts used for business receipts and balance schedule (if any)", "item_type": "statement", "risk_level": "high", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "5",
+    "section_title": "动产和不动产",
+    "section_title_en": "Movable & Immovable Property",
+    "items": [
+      {"item_no": "5.1", "title": "不动产清单及权属证书（自有或租赁房产、土地、在建工程）", "title_en": "Real property schedule and title certificates (owned or leased properties, land, construction in progress)", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "5.2", "title": "原始价值超过2万元的动产清单", "title_en": "Movable asset schedule (original value > RMB 20,000)", "item_type": "list", "risk_level": "low", "is_required": 1},
+      {"item_no": "5.3", "title": "实际经营地及注册地的购买/租赁合同、业主产权文件、租赁备案证明", "title_en": "Purchase/lease agreements for actual operating and registered addresses, landlord title documents, lease registration certificates", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "5.4", "title": "与第三方共用资产情况说明（不动产、固定资产、IP、人员、客户名单、账户等）", "title_en": "Statement on assets shared with third parties (real property, fixed assets, IP, personnel, customer lists, accounts)", "item_type": "statement", "risk_level": "medium", "is_required": 1},
+      {"item_no": "5.5", "title": "资产上存在的抵押、质押、留置、租赁、使用限制等权利瑕疵文件", "title_en": "Documents for encumbrances on assets: mortgage, pledge, lien, lease, use restrictions", "item_type": "file", "risk_level": "high", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "6",
+    "section_title": "知识产权",
+    "section_title_en": "Intellectual Property",
+    "items": [
+      {"item_no": "6.1", "title": "知识产权清单及权属证书（专利、商标、软著、作品著作权、域名）及ICP备案凭证", "title_en": "IP schedule and title certificates (patents, trademarks, software copyrights, works copyrights, domain names) and ICP filing certificates", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "6.2", "title": "未登记在集团公司名下但业务使用的第三方知识产权清单及授权文件", "title_en": "Third-party IP used by the business but not registered under group entities: list and authorization documents", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "6.3", "title": "知识产权转让或许可使用合同（商标、专利、著作权、域名、专有技术、品牌）", "title_en": "IP transfer or license agreements (trademarks, patents, copyrights, domain names, know-how, brand)", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "6.4", "title": "核心技术清单及开发/取得方式说明", "title_en": "List of core technologies (patented or not) with explanation of how each was developed or acquired", "item_type": "statement", "risk_level": "high", "is_required": 1},
+      {"item_no": "6.5", "title": "开源软件使用情况：开源协议类别、协议文本、下载网址", "title_en": "Open-source software usage: license types, license texts, download URLs", "item_type": "statement", "risk_level": "medium", "is_required": 0},
+      {"item_no": "6.6", "title": "知识产权侵权或被侵权情况说明及应对措施", "title_en": "Statement on IP infringement or being infringed and measures taken/planned", "item_type": "statement", "risk_level": "high", "is_required": 1},
+      {"item_no": "6.7", "title": "商业秘密及保密内部政策文件", "title_en": "Internal policies on trade secrets and confidentiality", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "6.8", "title": "业务推广平台清单（微信公众号/视频号/小程序、抖音、微博、小红书、TikTok、Amazon等）", "title_en": "Business promotion platform schedule (WeChat, Douyin, Weibo, Xiaohongshu, TikTok, Amazon, etc.)", "item_type": "list", "risk_level": "low", "is_required": 0},
+      {"item_no": "6.9", "title": "APP清单（如有）", "title_en": "APP registration schedule (if any)", "item_type": "list", "risk_level": "low", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "7",
+    "section_title": "税务及财政补贴",
+    "section_title_en": "Tax & Fiscal Subsidies",
+    "items": [
+      {"item_no": "7.1", "title": "最近三个月纳税申报单及税种/税率说明", "title_en": "Tax filings for the past 3 months and summary of tax types and rates", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "7.2", "title": "是否就全部收入足额开票及申报纳税的说明", "title_en": "Statement on whether invoices are issued and taxes declared for all revenue", "item_type": "statement", "risk_level": "high", "is_required": 1},
+      {"item_no": "7.3", "title": "政府补贴、税收优惠、税务抵免文件（含补贴明细表）", "title_en": "Government subsidies, tax incentives, tax credits documents (including detailed subsidy schedule)", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "7.4", "title": "公司或员工采用的避税措施说明及相关协议", "title_en": "Statement on tax avoidance measures used by company or employees and related agreements", "item_type": "statement", "risk_level": "high", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "8",
+    "section_title": "雇员和不竞争",
+    "section_title_en": "Employees & Non-Compete",
+    "items": [
+      {"item_no": "8.1", "title": "员工清单（含所有主体劳动用工情况及对应主体标注）", "title_en": "Employee schedule (all entities, with labor relationship entity noted)", "item_type": "list", "risk_level": "medium", "is_required": 1},
+      {"item_no": "8.2", "title": "创始人及核心员工名单及简历（以时间为序，含具体任职情况）", "title_en": "Founders and key employees list and CVs (chronological, including all positions)", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "8.3", "title": "创始人及核心员工与集团公司签署的劳动合同、竞业限制/保密协议、知识产权归属协议（签署版）", "title_en": "Signed labor contracts, non-compete/confidentiality agreements, IP assignment agreements for founders and key employees", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "8.4", "title": "创始人及核心员工与前任职单位的劳动合同、竞业限制协议、保密协议、知识产权归属协议及离职证明", "title_en": "Labor contracts, non-compete, confidentiality, IP assignment agreements with prior employers and departure certificates for founders and key employees", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "8.5", "title": "创始人及核心员工兼职/未全职加入情况说明（含现任职单位许可情况）", "title_en": "Statement on founders/key employees with part-time or non-full-time status (including current employer permission)", "item_type": "statement", "risk_level": "high", "is_required": 1},
+      {"item_no": "8.6", "title": "创始人及核心员工在其他公司持有期权情况说明", "title_en": "Statement on founders and key employees holding options in other companies", "item_type": "statement", "risk_level": "medium", "is_required": 1},
+      {"item_no": "8.7", "title": "劳动合同、竞业限制/保密协议、知识产权归属协议模板文本", "title_en": "Template labor contracts, non-compete/confidentiality agreements, IP assignment agreements", "item_type": "file", "risk_level": "low", "is_required": 1},
+      {"item_no": "8.8", "title": "普通员工劳动合同、竞业限制/保密协议、知识产权归属协议签署版（每个主体不少于2份）", "title_en": "Signed agreements for ordinary employees: labor contracts, non-compete/confidentiality, IP assignment (at least 2 per entity)", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "8.9", "title": "员工手册及HR相关政策（休假、解雇、退休、调动等）", "title_en": "Employee handbooks and HR policies (leave, termination, retirement, transfer)", "item_type": "file", "risk_level": "low", "is_required": 1},
+      {"item_no": "8.10", "title": "劳务派遣/外包用工名单及与劳务派遣公司签署的协议（如有）", "title_en": "Labor dispatch/outsourcing employee list and agreements with dispatch companies (if any)", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "8.11", "title": "第三方人力资源服务公司代缴社保/公积金协议（如有）", "title_en": "Third-party HR service company agreements for social insurance/housing fund contributions (if any)", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "8.12", "title": "兼职人员、实习人员、外籍员工劳务协议及外籍员工居留/就业许可证（如有）", "title_en": "Part-time, intern and foreign employee agreements; foreign employees' residence and work permits (if any)", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "8.13", "title": "社保及公积金缴纳情况说明及最近三个月缴付凭证", "title_en": "Social insurance and housing fund contribution status and last 3 months' payment receipts", "item_type": "file", "risk_level": "high", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "9",
+    "section_title": "保险",
+    "section_title_en": "Insurance",
+    "items": [
+      {"item_no": "9.1", "title": "所有保险单（专业责任险、D&O险、关键人员险、财产险、责任险、业务中断险、产品责任险等）", "title_en": "All insurance policies (professional liability, D&O, key person, property, liability, business interruption, product liability)", "item_type": "file", "risk_level": "low", "is_required": 0},
+      {"item_no": "9.2", "title": "自成立以来的保险索赔记录", "title_en": "Insurance claims list since incorporation", "item_type": "list", "risk_level": "low", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "10",
+    "section_title": "诉讼、执行及行政处罚",
+    "section_title_en": "Litigation, Enforcement & Administrative Penalties",
+    "items": [
+      {"item_no": "10.1", "title": "自成立以来所有诉讼、仲裁、行政程序、政府调查及索赔情况（含诉讼文书、行政处罚书、保全文书、支付凭证）", "title_en": "All litigation, arbitration, administrative proceedings, government investigations and claims since incorporation (with documents, penalty notices, preservation orders, payment receipts)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "10.2", "title": "劳动纠纷情况说明及和解协议/支付凭证（如有）", "title_en": "Labor dispute statement and settlement agreements/payment receipts (if any)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "10.3", "title": "创始人、高管及核心员工涉诉/仲裁/行政程序情况说明", "title_en": "Statement on founders, senior management and key employees involved in litigation/arbitration/administrative proceedings", "item_type": "statement", "risk_level": "high", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "11",
+    "section_title": "网络安全、数据合规及个人信息保护",
+    "section_title_en": "Cybersecurity, Data Compliance & Personal Information Protection",
+    "items": [
+      {"item_no": "11.1", "title": "网络安全、数据合规及个人信息保护情况说明（如产品/服务涉及个人信息或重要数据的收集、存储、使用）", "title_en": "Cybersecurity, data compliance and personal information protection statement (if products/services involve collection, storage or use of personal information or important data)", "item_type": "statement", "risk_level": "high", "is_required": 0},
+      {"item_no": "11.2", "title": "隐私政策、数据安全制度、网络安全等级保护备案文件（如有）", "title_en": "Privacy policy, data security policies, cybersecurity level protection filing documents (if any)", "item_type": "file", "risk_level": "medium", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "12",
+    "section_title": "ESG",
+    "section_title_en": "ESG",
+    "items": [
+      {"item_no": "12.1", "title": "ESG相关制度、政策及支持文件", "title_en": "ESG-related policies, systems and supporting documents", "item_type": "file", "risk_level": "low", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "13",
+    "section_title": "其他",
+    "section_title_en": "Other",
+    "items": [
+      {"item_no": "13.1", "title": "公司认为可能影响投资方投资决策的其他文件", "title_en": "Any other documents the company believes may affect the investor's investment decision", "item_type": "file", "risk_level": "low", "is_required": 0}
+    ]
+  }
+]
