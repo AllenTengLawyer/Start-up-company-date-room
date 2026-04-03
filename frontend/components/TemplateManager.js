@@ -221,3 +221,6 @@ const TemplateManager = {
 }
 
 export default TemplateManager
+
+// Mount to window for global access
+window.TemplateManager = TemplateManager;

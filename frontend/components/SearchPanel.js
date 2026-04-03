@@ -114,3 +114,6 @@ const SearchPanel = {
 }
 
 export default SearchPanel
+
+// Mount to window for global access
+window.SearchPanel = SearchPanel;

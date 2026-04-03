@@ -178,3 +178,6 @@ const VersionHistoryModal = {
 }
 
 export default VersionHistoryModal
+
+// Mount to window for global access
+window.VersionHistoryModal = VersionHistoryModal;

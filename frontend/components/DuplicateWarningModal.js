@@ -116,3 +116,6 @@ const DuplicateWarningModal = {
 }
 
 export default DuplicateWarningModal
+
+// Mount to window for global access
+window.DuplicateWarningModal = DuplicateWarningModal;
