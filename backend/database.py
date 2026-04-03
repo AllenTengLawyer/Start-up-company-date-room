@@ -4,9 +4,15 @@ import os
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "dataroom.db")
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 30000")
+    try:
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+    except Exception:
+        pass
     return conn
 
 def init_db():
@@ -173,7 +179,11 @@ def init_db():
     # Seed default templates
     try:
         from .seed import seed_default_templates
-        seed_default_templates(get_db())
+        seed_conn = get_db()
+        try:
+            seed_default_templates(seed_conn)
+        finally:
+            seed_conn.close()
     except Exception:
         pass  # Ignore seed errors
 
@@ -252,6 +262,12 @@ def migrate_db():
         CREATE INDEX IF NOT EXISTS idx_files_size ON files(file_size);
         CREATE INDEX IF NOT EXISTS idx_file_versions_file ON file_versions(file_id);
     """)
+
+    # Migration: add notes column to ldd_mappings
+    try:
+        c.execute("ALTER TABLE ldd_mappings ADD COLUMN notes TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
     conn.close()

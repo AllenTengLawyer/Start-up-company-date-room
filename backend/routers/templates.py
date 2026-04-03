@@ -28,13 +28,6 @@ class TemplateItemCreate(BaseModel):
     sort_order: int = 0
 
 
-class TemplateImport(BaseModel):
-    name: str
-    round_type: str
-    description: Optional[str] = None
-    items: List[TemplateItemCreate]
-
-
 @router.get("/ldd/templates")
 def list_templates(round_type: Optional[str] = None):
     """List all templates, optionally filtered by round type."""
@@ -314,43 +307,3 @@ def export_template(template_id: int):
     }
 
     return export_data
-
-
-@router.post("/ldd/templates/import", status_code=201)
-def import_template(data: TemplateImport):
-    """Import template from JSON."""
-    db = get_db()
-
-    # Create template
-    cur = db.execute(
-        """INSERT INTO ldd_templates (name, round_type, description, is_builtin)
-           VALUES (?, ?, ?, 0)""",
-        (data.name, data.round_type, data.description)
-    )
-    template_id = cur.lastrowid
-
-    # Create items
-    for item in data.items:
-        db.execute(
-            """INSERT INTO ldd_template_items
-               (template_id, section_no, item_no, title, title_en, description,
-                item_type, risk_level, is_required, sort_order)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (template_id, item.section_no, item.item_no, item.title,
-             item.title_en, item.description, item.item_type,
-             item.risk_level, item.is_required, item.sort_order)
-        )
-
-    db.commit()
-
-    template = db.execute(
-        "SELECT * FROM ldd_templates WHERE id = ?",
-        (template_id,)
-    ).fetchone()
-    db.close()
-
-    return {
-        "ok": True,
-        "template": dict(template),
-        "items_imported": len(data.items)
-    }

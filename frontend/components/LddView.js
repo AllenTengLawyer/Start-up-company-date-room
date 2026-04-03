@@ -67,21 +67,37 @@ window.LddView = {
     };
 
     async function load() {
-      const [lddData, scoreData, filesData, todoData, summaryData, catsData] = await Promise.all([
-        api('GET', `/projects/${projectId.value}/ldd`),
-        api('GET', `/projects/${projectId.value}/ldd/score`),
-        api('GET', `/projects/${projectId.value}/files`),
-        api('GET', `/projects/${projectId.value}/ldd/todo`),
-        api('GET', `/projects/${projectId.value}/founders/summary`),
-        api('GET', `/projects/${projectId.value}/categories`),
-      ]);
-      sections.value = lddData.sections;
-      score.value = scoreData;
-      allFiles.value = filesData;
-      todoItems.value = todoData.items;
-      founderSummary.value = summaryData;
-      allCatTree.value = catsData;
-      if (sections.value.length) openSections.value[sections.value[0].section_no] = true;
+      error.value = '';
+      try {
+        try {
+          await api('POST', `/projects/${projectId.value}/ensure-seeded`);
+        } catch (e) { error.value = e.message || String(e); }
+        const [lddData, scoreData, filesData, todoData, summaryData, catsData] = await Promise.all([
+          api('GET', `/projects/${projectId.value}/ldd`),
+          api('GET', `/projects/${projectId.value}/ldd/score`),
+          api('GET', `/projects/${projectId.value}/files`),
+          api('GET', `/projects/${projectId.value}/ldd/todo`),
+          api('GET', `/projects/${projectId.value}/founders/summary`),
+          api('GET', `/projects/${projectId.value}/categories`),
+        ]);
+        sections.value = lddData.sections;
+        score.value = scoreData;
+        allFiles.value = filesData;
+        todoItems.value = todoData.items;
+        founderSummary.value = summaryData;
+        allCatTree.value = catsData;
+        openSections.value = {};
+        if (sections.value.length) openSections.value[sections.value[0].section_no] = true;
+      } catch (e) {
+        error.value = e.message || String(e);
+        sections.value = [];
+        todoItems.value = [];
+        founderSummary.value = [];
+        allFiles.value = [];
+        allCatTree.value = [];
+        openSections.value = {};
+        score.value = { score_pct: 0, provided: 0, partial: 0, pending: 0, na: 0, total: 0 };
+      }
     }
 
     function toggleSection(no) {
@@ -135,6 +151,13 @@ window.LddView = {
       await load();
     }
 
+    async function updateMappingNote(mappingId, notes) {
+      try {
+        await api('PUT', `/ldd/mappings/${mappingId}/notes`, { notes });
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
+    }
     const exporting = Vue.ref(false);
 
     async function exportLddZip() {
@@ -156,13 +179,16 @@ window.LddView = {
     const riskLabel = { high: '高', medium: '中', low: '低' };
     const statusLabel = { provided: '✓ 已提供', partial: '△ 部分', pending: '✗ 未提供', na: '— 不适用' };
 
+    Vue.onMounted(load);
+    Vue.watch(projectId, () => load());
+
     return { t, sections, todoItems, founderSummary, score, allFiles, allCatTree, openSections,
              activeTab, showMapModal, mappingItem, mapStep, mapSelectedCatId, mapSelectedFileIds,
              allCategories, modalFiles, exporting, error,
              SECTION_TITLES, riskLabel, statusLabel,
              toggleSection, updateStatus, openMapModal, addMapping,
              toggleFileSelect, selectAllInCategory, confirmMappings, removeMapping,
-             descendantCatIds, exportLddZip, router, projectId };
+            descendantCatIds, exportLddZip, router, projectId, updateMappingNote };
   },
   template: `
     <div class="page">
@@ -172,6 +198,8 @@ window.LddView = {
           {{ exporting ? '导出中...' : '📦 导出尽调包' }}
         </button>
       </div>
+
+      <div class="error" v-if="error">{{ error }}</div>
 
       <!-- Founder summary (only if founders exist) -->
       <div class="card" v-if="founderSummary.length" style="margin-bottom:16px;">
@@ -239,10 +267,14 @@ window.LddView = {
               </select>
             </div>
             <div class="item-detail">
+              <textarea v-model="item.statement" @blur="updateStatus(item)"
+                class="input statement-input" rows="2" :placeholder="t('ldd_statement')"></textarea>
               <div class="mapped-files">
                 <span class="mapped-file" v-for="mf in item.mapped_files" :key="mf.id">
                   📄 {{ mf.file_name }}
                   <span class="file-cat-badge" v-if="mf.category_name">{{ mf.category_name }}</span>
+                    <textarea class="input statement-input" rows="2" style="margin-top:6px;" placeholder="说明/备注"
+                      v-model="mf.notes" @blur="updateMappingNote(mf.id, mf.notes)"></textarea>
                   <button class="btn-icon-danger" @click="removeMapping(mf.id)">✕</button>
                 </span>
                 <button class="btn-link" @click="openMapModal(item)">+ {{ t('ldd_add_mapping') }}</button>
@@ -275,13 +307,14 @@ window.LddView = {
                 </select>
               </div>
               <div class="item-detail" v-if="item.status !== 'na'">
-                <textarea v-if="item.item_type === 'statement' || item.item_type === 'list'"
-                  v-model="item.statement" @blur="updateStatus(item)"
+                <textarea v-model="item.statement" @blur="updateStatus(item)"
                   class="input statement-input" rows="2" :placeholder="t('ldd_statement')"></textarea>
                 <div class="mapped-files">
                   <span class="mapped-file" v-for="mf in item.mapped_files" :key="mf.id">
                     📄 {{ mf.file_name }}
                     <span class="file-cat-badge" v-if="mf.category_name">{{ mf.category_name }}</span>
+                    <textarea class="input statement-input" rows="2" style="margin-top:6px;" placeholder="说明/备注"
+                      v-model="mf.notes" @blur="updateMappingNote(mf.id, mf.notes)"></textarea>
                     <button class="btn-icon-danger" @click="removeMapping(mf.id)">✕</button>
                   </span>
                   <button class="btn-link" @click="openMapModal(item)">+ {{ t('ldd_add_mapping') }}</button>
@@ -321,7 +354,7 @@ window.LddView = {
                 <button class="btn-link" @click="selectAllInCategory" v-if="modalFiles.length > 0">全选该分类</button>
               </div>
               <div style="flex:1;overflow-y:auto;padding:8px;">
-              <div class="empty" v-if="modalFiles.length === 0">该分类下暂无文件</div>
+              <div class="empty" v-if="modalFiles.length === 0">暂无已注册文件（请先在“文件柜”扫描并注册）</div>
               <div v-for="f in modalFiles" :key="f.id"
                 :class="['file-pick-item', mapSelectedFileIds.has(f.id) ? 'selected' : '']"
                 @click="toggleFileSelect(f.id)">

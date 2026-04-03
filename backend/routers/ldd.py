@@ -11,6 +11,8 @@ class StatusUpdate(BaseModel):
 
 class MappingCreate(BaseModel):
     file_id: int
+class MappingNoteUpdate(BaseModel):
+    notes: str = ""
 
 @router.get("/projects/{project_id}/ldd")
 def get_ldd(project_id: int):
@@ -106,6 +108,13 @@ def update_status(item_id: int, data: StatusUpdate):
     db.close()
     return {"ok": True}
 
+@router.put("/ldd/mappings/{mapping_id}/notes")
+def update_mapping_notes(mapping_id: int, data: MappingNoteUpdate):
+    db = get_db()
+    db.execute("UPDATE ldd_mappings SET notes=? WHERE id=?", (data.notes, mapping_id))
+    db.commit()
+    db.close()
+    return {"ok": True}
 @router.post("/ldd/{item_id}/mappings", status_code=201)
 def add_mapping(item_id: int, data: MappingCreate):
     db = get_db()

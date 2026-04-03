@@ -414,7 +414,7 @@ def export_ldd_zip(project_id: int):
     ).fetchall()
 
     mappings = db.execute("""
-        SELECT lm.ldd_item_id, f.file_name, f.file_path, f.category_id,
+        SELECT lm.ldd_item_id, lm.notes, f.file_name, f.file_path, f.category_id,
                c.name as category_name, c.parent_id as category_parent_id
         FROM ldd_mappings lm
         JOIN files f ON lm.file_id = f.id
@@ -442,6 +442,35 @@ def export_ldd_zip(project_id: int):
         return f"{base}_({seen_paths[path]}){ext}"
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Also add notes summary (statements + mapping notes)
+        from ..database import get_db as _get_db2
+        db2 = _get_db2()
+        statuses = {
+            r["ldd_item_id"]: dict(r)
+            for r in db2.execute("""
+                SELECT ls.* FROM ldd_status ls
+                JOIN ldd_items li ON ls.ldd_item_id = li.id
+                WHERE li.project_id=?
+            """, (project_id,)).fetchall()
+        }
+        db2.close()
+        lines = []
+        lines.append(f"项目：{project['name']}")
+        lines.append("")
+        for item in items:
+            sec = str(item["section_no"])
+            sec_name = SECTION_NAMES.get(sec, sec)
+            lines.append(f"§{sec} {sec_name} / {item['item_no']} {item['title']}")
+            st = statuses.get(item["id"], {})
+            if st.get("statement"):
+                lines.append(f"说明：{st.get('statement')}")
+            mfs = mappings_by_item.get(item["id"], [])
+            for m in mfs:
+                note = m.get("notes") or ""
+                lines.append(f" - {m['file_name']}" + (f"（说明：{note}）" if note else ""))
+            lines.append("")
+        zf.writestr("LDD_Notes.txt", "\n".join(lines))
+
         for item in items:
             item_files = mappings_by_item.get(item["id"], [])
             if not item_files:

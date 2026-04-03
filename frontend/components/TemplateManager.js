@@ -14,7 +14,6 @@ const TemplateManager = {
             <option value="series_b">B轮</option>
             <option value="custom">自定义</option>
           </select>
-          <button class="btn-primary" @click="showImportModal = true">导入模板</button>
         </div>
       </div>
 
@@ -41,27 +40,6 @@ const TemplateManager = {
 
         <div v-if="filteredTemplates.length === 0" class="empty-state">
           暂无模板
-        </div>
-      </div>
-
-      <!-- Import Modal -->
-      <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
-        <div class="modal card" style="max-width: 500px;">
-          <div class="modal-header">
-            <h3>导入模板</h3>
-            <button class="btn-close" @click="showImportModal = false">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label>粘贴JSON模板</label>
-              <textarea v-model="importJson" class="form-control" rows="10" placeholder='{"name": "...", "round_type": "...", "items": [...]}'></textarea>
-            </div>
-            <div v-if="importError" class="error">{{ importError }}</div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="showImportModal = false">取消</button>
-            <button class="btn btn-primary" @click="doImport" :disabled="!importJson.trim()">导入</button>
-          </div>
         </div>
       </div>
 
@@ -116,9 +94,6 @@ const TemplateManager = {
       templates: [],
       loading: false,
       filterRound: '',
-      showImportModal: false,
-      importJson: '',
-      importError: '',
       viewingTemplate: null
     }
   },
@@ -203,24 +178,9 @@ const TemplateManager = {
       } catch (e) {
         alert('删除失败: ' + e.message)
       }
-    },
-
-    async doImport() {
-      this.importError = ''
-      try {
-        const data = JSON.parse(this.importJson)
-        await api('POST', '/ldd/templates/import', data)
-        this.showImportModal = false
-        this.importJson = ''
-        await this.loadTemplates()
-      } catch (e) {
-        this.importError = e.message || '导入失败'
-      }
     }
   }
 }
-
-export default TemplateManager
 
 // Mount to window for global access
 window.TemplateManager = TemplateManager;

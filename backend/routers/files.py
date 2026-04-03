@@ -91,8 +91,45 @@ def suggest_category(file_name: str, categories: list) -> Optional[int]:
     return None
 
 def get_all_categories_flat(db, project_id):
-    rows = db.execute("SELECT id, name FROM categories WHERE project_id=?", (project_id,)).fetchall()
+    rows = db.execute("SELECT id, name, parent_id FROM categories WHERE project_id=?", (project_id,)).fetchall()
     return [dict(r) for r in rows]
+
+class AutoCategorizeRequest(BaseModel):
+    only_unclassified: bool = True
+
+@router.post("/projects/{project_id}/files/auto-categorize")
+def auto_categorize_files(project_id: int, req: AutoCategorizeRequest):
+    db = get_db()
+    try:
+        categories = get_all_categories_flat(db, project_id)
+        categories_simple = [{"id": c["id"], "name": c["name"]} for c in categories]
+        if req.only_unclassified:
+            files = db.execute(
+                "SELECT id, file_name, file_path, category_id FROM files WHERE project_id=? AND category_id IS NULL",
+                (project_id,)
+            ).fetchall()
+        else:
+            files = db.execute(
+                "SELECT id, file_name, file_path, category_id FROM files WHERE project_id=?",
+                (project_id,)
+            ).fetchall()
+
+        updated = 0
+        updated_ids = []
+        for f in files:
+            suggested_id = suggest_category(f["file_name"], categories_simple)
+            if not suggested_id:
+                continue
+            if f["category_id"] == suggested_id:
+                continue
+            db.execute("UPDATE files SET category_id=? WHERE id=?", (suggested_id, f["id"]))
+            updated += 1
+            updated_ids.append(f["id"])
+
+        db.commit()
+        return {"ok": True, "updated": updated, "updated_ids": updated_ids}
+    finally:
+        db.close()
 
 class FileRegister(BaseModel):
     file_name: str
@@ -107,7 +144,7 @@ class FileUpdate(BaseModel):
 
 class BatchUpdateRequest(BaseModel):
     file_ids: List[int]
-    category_id: int
+    category_id: Optional[int]
 
 class BatchRenameRequest(BaseModel):
     file_ids: List[int]
@@ -137,6 +174,31 @@ def scan_directory(project_id: int):
         for r in db.execute("SELECT file_path, file_name, file_size, content_hash FROM files WHERE project_id=?", (project_id,)).fetchall()
     }
     categories = get_all_categories_flat(db, project_id)
+    id_to_cat = {c["id"]: c for c in categories}
+
+    def cat_path_parts(cat_id: int):
+        parts = []
+        cur = cat_id
+        while cur is not None:
+            row = id_to_cat.get(cur)
+            if not row:
+                break
+            parts.append(row["name"])
+            cur = row.get("parent_id")
+        parts.reverse()
+        return tuple(parts)
+
+    category_path_map = {cat_path_parts(c["id"]): c["id"] for c in categories}
+
+    def suggest_category_by_path(rel_path: str) -> Optional[int]:
+        dir_parts = rel_path.split("/")[:-1]
+        if not dir_parts:
+            return None
+        for depth in range(len(dir_parts), 0, -1):
+            key = tuple(dir_parts[:depth])
+            if key in category_path_map:
+                return category_path_map[key]
+        return None
     db.close()
 
     found = []
@@ -161,7 +223,7 @@ def scan_directory(project_id: int):
 
             # Calculate file metadata for duplicate detection
             file_size = get_file_size(fpath)
-            content_hash = calculate_file_hash(fpath)
+            last_modified = get_file_mtime(fpath)
 
             # Check for duplicates by name + size
             dup_info = None
@@ -170,12 +232,12 @@ def scan_directory(project_id: int):
                     dup_info = reg_path
                     break
 
-            suggested_id = suggest_category(fname, categories)
+            suggested_id = suggest_category_by_path(rel_path) or suggest_category(fname, categories)
             file_info = {
                 "file_name": fname,
                 "file_path": rel_path,
                 "file_size": file_size,
-                "content_hash": content_hash,
+                "last_modified": last_modified,
                 "suggested_category_id": suggested_id,
                 "suggested_category_name": next(
                     (c["name"] for c in categories if c["id"] == suggested_id), None
@@ -242,6 +304,34 @@ def list_files(project_id: int):
     """, (project_id,)).fetchall()
     db.close()
     return [dict(r) for r in rows]
+
+@router.put("/files/batch")
+def batch_update_category(req: BatchUpdateRequest):
+    """Update category for multiple files."""
+    if not req.file_ids:
+        return {"ok": True, "updated": 0}
+
+    db = get_db()
+    placeholders = ",".join("?" * len(req.file_ids))
+
+    # Verify all files exist
+    existing = db.execute(
+        f"SELECT id FROM files WHERE id IN ({placeholders})",
+        tuple(req.file_ids)
+    ).fetchall()
+    existing_ids = {r["id"] for r in existing}
+
+    if not existing_ids:
+        db.close()
+        raise HTTPException(404, "未找到文件")
+
+    # Update in transaction
+    for fid in existing_ids:
+        db.execute("UPDATE files SET category_id = ? WHERE id = ?", (req.category_id, fid))
+
+    db.commit()
+    db.close()
+    return {"ok": True, "updated": len(existing_ids)}
 
 @router.put("/files/{file_id}")
 def update_file(file_id: int, data: FileUpdate):
@@ -375,37 +465,6 @@ def search_files(
 
     db.close()
     return {"query": q, "results": results, "count": len(results), "fts_enabled": fts_available}
-
-
-# ── Batch Operations ──────────────────────────────────────────────────────────
-
-@router.put("/files/batch")
-def batch_update_category(req: BatchUpdateRequest):
-    """Update category for multiple files."""
-    if not req.file_ids:
-        return {"ok": True, "updated": 0}
-
-    db = get_db()
-    placeholders = ",".join("?" * len(req.file_ids))
-
-    # Verify all files exist
-    existing = db.execute(
-        f"SELECT id FROM files WHERE id IN ({placeholders})",
-        tuple(req.file_ids)
-    ).fetchall()
-    existing_ids = {r["id"] for r in existing}
-
-    if not existing_ids:
-        db.close()
-        raise HTTPException(404, "未找到文件")
-
-    # Update in transaction
-    for fid in existing_ids:
-        db.execute("UPDATE files SET category_id = ? WHERE id = ?", (req.category_id, fid))
-
-    db.commit()
-    db.close()
-    return {"ok": True, "updated": len(existing_ids)}
 
 
 @router.post("/files/batch-rename")

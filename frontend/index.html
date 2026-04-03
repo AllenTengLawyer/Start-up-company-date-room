@@ -25,11 +25,23 @@
           <div class="mode-badge">
             {{ currentProject.mode === 'early_team' ? $t('mode_early_team') : $t('mode_established') }}
           </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+            <div style="flex:1;min-width:0;font-size:11px;color:#718096;word-break:break-all;"
+              :title="currentProject.root_path">
+              {{ currentProject.root_path }}
+            </div>
+            <button class="btn-ghost" style="padding:2px 6px;font-size:12px;line-height:1;" title="打开根目录"
+              @click.stop="openProjectRoot">📁</button>
+          </div>
           <div class="project-menu" v-if="showProjectMenu">
             <div v-for="p in appState.projects" :key="p.id"
               :class="['project-menu-item', p.id === currentProject.id ? 'active' : '']"
               @click="switchProject(p)">
               {{ p.name }}
+            </div>
+            <div class="project-menu-divider"></div>
+            <div class="project-menu-item delete-item" @click="deleteCurrentProject">
+              🗑️ 删除当前项目
             </div>
           </div>
         </div>
@@ -55,21 +67,25 @@
       <router-view :key="$route.fullPath" @project-created="onProjectCreated" @project-updated="loadProjects"></router-view>
     </main>
   </div>
-  <div v-else class="loading">加载中...</div>
+  <div v-else class="loading">
+    <div>加载中...</div>
+    <div v-if="initError" style="margin-top:10px;color:#c53030;font-size:12px;white-space:pre-wrap;max-width:820px;">
+      {{ initError }}
+    </div>
+  </div>
 </div>
 
-<script src="/components/DuplicateWarningModal.js"></script>
-<script src="/components/BatchRenameModal.js"></script>
-<script src="/components/VersionHistoryModal.js"></script>
-<script src="/components/SearchPanel.js"></script>
-<script src="/components/TemplateManager.js"></script>
-<script src="/components/ProjectInit.js"></script>
-<script src="/components/FounderList.js"></script>
-<script src="/components/FounderDetail.js"></script>
-<script src="/components/CategoryTree.js"></script>
-<script src="/components/FileScanner.js"></script>
-<script src="/components/LddView.js"></script>
-<script src="/components/ExportPanel.js"></script>
-<script src="/app.js"></script>
+<script src="/components/DuplicateWarningModal.js?v=20260403_19"></script>
+<script src="/components/BatchRenameModal.js?v=20260403_19"></script>
+<script src="/components/VersionHistoryModal.js?v=20260403_19"></script>
+<script src="/components/SearchPanel.js?v=20260403_19"></script>
+<script src="/components/TemplateManager.js?v=20260403_19"></script>
+<script src="/components/ProjectInit.js?v=20260403_19"></script>
+<script src="/components/FounderList.js?v=20260403_19"></script>
+<script src="/components/FounderDetail.js?v=20260403_19"></script>
+<script src="/components/FileScanner.js?v=20260403_19"></script>
+<script src="/components/LddView.js?v=20260403_19"></script>
+<script src="/components/ExportPanel.js?v=20260403_19"></script>
+<script src="/app.js?v=20260403_19"></script>
 </body>
 </html>

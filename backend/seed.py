@@ -24,7 +24,10 @@ def create_category_folders(db, project_id: int, root_path: str):
     for row in rows:
         parts = get_path_parts(row["id"])
         folder = os.path.join(root_path, *parts)
-        os.makedirs(folder, exist_ok=True)
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except Exception:
+            pass
 
 def seed_project(db, project_id: int, root_path: str = None):
     """Seed categories and LDD items for a newly created established-mode project."""

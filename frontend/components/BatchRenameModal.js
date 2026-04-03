@@ -140,7 +140,5 @@ const BatchRenameModal = {
   }
 }
 
-export default BatchRenameModal
-
 // Mount to window for global access
 window.BatchRenameModal = BatchRenameModal;

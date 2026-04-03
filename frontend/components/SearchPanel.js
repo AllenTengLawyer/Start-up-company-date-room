@@ -24,6 +24,10 @@ const SearchPanel = {
       <div v-if="loading" class="search-loading">
         搜索中...
       </div>
+      
+      <div v-else-if="error" class="error">
+        {{ error }}
+      </div>
 
       <div v-else-if="hasSearched" class="search-results">
         <div class="results-header">
@@ -71,7 +75,8 @@ const SearchPanel = {
       loading: false,
       hasSearched: false,
       ftsEnabled: true,
-      debounceTimer: null
+      debounceTimer: null,
+      error: ''
     }
   },
 
@@ -87,15 +92,16 @@ const SearchPanel = {
       if (!this.query.trim()) return
 
       this.loading = true
+      this.error = ''
       try {
-        const res = await fetch(`/api/projects/${this.projectId}/search?q=${encodeURIComponent(this.query)}`)
-        const data = await res.json()
+        const data = await api('GET', `/projects/${this.projectId}/search?q=${encodeURIComponent(this.query)}`)
         this.results = data.results || []
         this.ftsEnabled = data.fts_enabled
         this.hasSearched = true
       } catch (e) {
-        console.error('Search failed:', e)
+        this.error = (e && e.message) ? e.message : '搜索失败'
         this.results = []
+        this.hasSearched = true
       } finally {
         this.loading = false
       }
@@ -112,8 +118,6 @@ const SearchPanel = {
     }
   }
 }
-
-export default SearchPanel
 
 // Mount to window for global access
 window.SearchPanel = SearchPanel;

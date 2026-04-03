@@ -21,10 +21,18 @@ window.FileScanner = {
     const newSubCatName = Vue.ref('');
     const renamingCatId = Vue.ref(null);
     const renamingCatName = Vue.ref('');
-    const sortKey = Vue.ref('created_at');
+    const sortKey = Vue.ref('registered_at');
     const sortDir = Vue.ref('desc');
     const zipLoadingCatId = Vue.ref(null);
     const error = Vue.ref('');
+    const catPanelWidth = Vue.ref(360);
+    const isResizing = Vue.ref(false);
+    const dragFileIds = Vue.ref([]);
+    const dragOverCatId = Vue.ref(null);
+    const isDragging = Vue.ref(false);
+    const dragTargetLabel = Vue.ref('');
+    const toastMessage = Vue.ref('');
+    let toastTimer = null;
 
     // Duplicate detection
     const showDuplicateModal = Vue.ref(false);
@@ -59,12 +67,22 @@ window.FileScanner = {
     );
 
     async function load() {
-      const [cats, files] = await Promise.all([
-        api('GET', `/projects/${projectId.value}/categories`),
-        api('GET', `/projects/${projectId.value}/files`),
-      ]);
-      categories.value = cats;
-      registeredFiles.value = files;
+      error.value = '';
+      try {
+        try {
+          await api('POST', `/projects/${projectId.value}/ensure-seeded`);
+        } catch (e) { error.value = e.message || String(e); }
+        const [cats, files] = await Promise.all([
+          api('GET', `/projects/${projectId.value}/categories`),
+          api('GET', `/projects/${projectId.value}/files`),
+        ]);
+        categories.value = cats;
+        registeredFiles.value = files;
+      } catch (e) {
+        error.value = e.message || String(e);
+        categories.value = [];
+        registeredFiles.value = [];
+      }
     }
 
     async function scan() {
@@ -76,17 +94,39 @@ window.FileScanner = {
         res.files.forEach(f => {
           selected.value[f.file_path] = { checked: true, category_id: f.suggested_category_id };
         });
+        activeTab.value = 'scan';
 
         // Check for duplicates
         if (res.duplicates && res.duplicates.length > 0) {
           duplicates.value = res.duplicates;
           pendingFiles.value = res.files;
           showDuplicateModal.value = true;
-        } else {
-          activeTab.value = 'scan';
         }
       } catch(e) { error.value = e.message; }
       finally { scanning.value = false; }
+    }
+
+    async function autoCategorize() {
+      error.value = '';
+      try {
+        const res = await api('POST', `/projects/${projectId.value}/files/auto-categorize`, { only_unclassified: true });
+        await load();
+        alert(`已自动分类 ${res.updated || 0} 个文件`);
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
+    }
+
+    function handleDuplicateClose() {
+      showDuplicateModal.value = false;
+      scannedFiles.value = pendingFiles.value.length ? pendingFiles.value : scannedFiles.value;
+      selected.value = {};
+      scannedFiles.value.forEach(f => {
+        selected.value[f.file_path] = { checked: true, category_id: f.suggested_category_id };
+      });
+      pendingFiles.value = [];
+      duplicates.value = [];
+      activeTab.value = 'scan';
     }
 
     function handleDuplicateConfirm(filesToRegister) {
@@ -137,14 +177,38 @@ window.FileScanner = {
     }
 
     async function updateFileCategory(fileId, catId) {
-      await api('PUT', `/files/${fileId}`, { category_id: catId || null });
-      await load();
+      try {
+        await api('PUT', `/files/${fileId}`, { category_id: catId || null });
+        await load();
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
     }
 
     async function deleteFile(fileId) {
       if (!confirm(t('confirm_delete'))) return;
-      await api('DELETE', `/files/${fileId}`);
-      await load();
+      try {
+        await api('DELETE', `/files/${fileId}`);
+        await load();
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
+    }
+
+    async function openFileDir(fileId) {
+      try {
+        await api('POST', `/projects/${projectId.value}/open-file-dir`, { file_id: fileId });
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
+    }
+
+    async function openCategoryDir(catId) {
+      try {
+        await api('POST', `/projects/${projectId.value}/open-category-dir`, { category_id: catId });
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
     }
 
     async function addSubCategory(parentId) {
@@ -223,6 +287,99 @@ window.FileScanner = {
       finally { zipLoadingCatId.value = null; }
     }
 
+    function showToast(msg) {
+      toastMessage.value = msg;
+      if (toastTimer) window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => {
+        toastMessage.value = '';
+      }, 2200);
+    }
+
+    function getCatLabel(catId) {
+      if (catId === null || catId === 'unclassified') return '未分类';
+      const c = flatCats.value.find(x => String(x.id) === String(catId));
+      return c ? c.name : '分类';
+    }
+
+    function resetDragState() {
+      isDragging.value = false;
+      dragFileIds.value = [];
+      dragOverCatId.value = null;
+      dragTargetLabel.value = '';
+    }
+
+    function startResize(e) {
+      isResizing.value = true;
+      const startX = e.clientX;
+      const startW = catPanelWidth.value;
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        catPanelWidth.value = Math.max(240, Math.min(720, startW + dx));
+      }
+      function onUp() {
+        isResizing.value = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+
+    function onFileDragStart(file, ev) {
+      const ids = selectedFileIds.value.has(file.id) ? Array.from(selectedFileIds.value) : [file.id];
+      dragFileIds.value = ids;
+      isDragging.value = true;
+      dragTargetLabel.value = '';
+      if (ev && ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', ids.join(','));
+      }
+    }
+
+    function onRowDragStart(file, ev) {
+      const tag = (ev?.target?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'button' || tag === 'select' || tag === 'textarea') {
+        ev.preventDefault();
+        return;
+      }
+      onFileDragStart(file, ev);
+    }
+
+    function onCatDragOver(catId, ev) {
+      if (ev) ev.preventDefault();
+      dragOverCatId.value = catId;
+      dragTargetLabel.value = getCatLabel(catId === null ? 'unclassified' : catId);
+      if (ev && ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    }
+
+    function onCatDragLeave(catId) {
+      if (dragOverCatId.value === catId) dragOverCatId.value = null;
+    }
+
+    async function onCatDrop(catId, ev) {
+      if (ev) ev.preventDefault();
+      let ids = dragFileIds.value && dragFileIds.value.length ? dragFileIds.value : [];
+      if ((!ids || ids.length === 0) && ev && ev.dataTransfer) {
+        const raw = ev.dataTransfer.getData('text/plain') || '';
+        const parsed = raw.split(',').map(s => parseInt(s, 10)).filter(n => Number.isFinite(n));
+        if (parsed.length) ids = parsed;
+      }
+      const label = getCatLabel(catId || 'unclassified');
+      resetDragState();
+      if (!ids.length) return;
+      try {
+        await api('PUT', '/files/batch', { file_ids: ids, category_id: catId || null });
+        // Keep user context: switch to target category and show results
+        selectedCatId.value = (catId == null ? 'unclassified' : catId);
+        activeTab.value = 'registered';
+        clearSelection();
+        await load();
+        showToast(`已移动 ${ids.length} 个文件到「${label}」`);
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
+    }
+
     // Batch operations
     function toggleFileSelection(fileId) {
       if (selectedFileIds.value.has(fileId)) {
@@ -298,7 +455,15 @@ window.FileScanner = {
       load();
     }
 
-    Vue.onMounted(load);
+    Vue.onMounted(() => {
+      load();
+      window.addEventListener('dragend', resetDragState);
+      window.addEventListener('drop', resetDragState);
+    });
+    Vue.onBeforeUnmount(() => {
+      window.removeEventListener('dragend', resetDragState);
+      window.removeEventListener('drop', resetDragState);
+    });
 
     const filteredFiles = Vue.computed(() => {
       let base;
@@ -322,33 +487,36 @@ window.FileScanner = {
       t, categories, flatCats, registeredFiles, filteredFiles, unclassifiedCount,
       scannedFiles, selected, scanning,
       activeTab, selectedCatId, addingSubCatId, newCatName, newSubCatName,
-      renamingCatId, renamingCatName, sortKey, sortDir, zipLoadingCatId, error, projectId,
+      renamingCatId, renamingCatName, sortKey, sortDir, zipLoadingCatId, error, projectId, catPanelWidth, isResizing, dragOverCatId,
+      isDragging, dragFileIds, dragTargetLabel, toastMessage,
       allChecked, suggestedCount,
       // Duplicate detection
-      showDuplicateModal, duplicates, pendingFiles, handleDuplicateConfirm,
+      showDuplicateModal, duplicates, pendingFiles, handleDuplicateClose, handleDuplicateConfirm,
       // Batch operations
       selectedFileIds, showBatchBar, showBatchRenameModal, selectedCount,
       toggleFileSelection, selectAllFiles, clearSelection,
       batchMoveToCategory, batchDelete, openBatchRename, handleBatchRename,
-      selectedFilesForRename,
+      selectedFilesForRename, startResize,
       // Search
       showSearch,
       // Version history
       showVersionModal, versionFileId, versionFileName, openVersionHistory, onRollback,
       // Functions
-      scan, registerSelected, registerSuggested, toggleSelectAll,
-      updateFileCategory, deleteFile, addCategory, addSubCategory,
-      startRename, confirmRename, moveCat, toggleSort, deleteCategory, downloadCategoryZip
+      scan, autoCategorize, registerSelected, registerSuggested, toggleSelectAll,
+      updateFileCategory, deleteFile, openFileDir, openCategoryDir, addCategory, addSubCategory,
+      startRename, confirmRename, moveCat, toggleSort, deleteCategory, downloadCategoryZip,
+      onFileDragStart, onRowDragStart, onCatDragOver, onCatDragLeave, onCatDrop
     };
   },
   template: `
     <div class="page">
+      <div class="toast" v-if="toastMessage">{{ toastMessage }}</div>
       <!-- Duplicate Warning Modal -->
       <DuplicateWarningModal
         v-if="showDuplicateModal"
         :duplicates="duplicates"
         :allFiles="pendingFiles"
-        @close="showDuplicateModal = false"
+        @close="handleDuplicateClose"
         @confirm="handleDuplicateConfirm"
       />
 
@@ -386,12 +554,19 @@ window.FileScanner = {
           <button class="btn-secondary" @click="showSearch = true">
             🔍 搜索
           </button>
+          <button class="btn-secondary" @click="autoCategorize" :disabled="scanning || unclassifiedCount === 0">
+            一键自动分类
+          </button>
           <button class="btn-primary" @click="scan" :disabled="scanning">
             {{ scanning ? '扫描中...' : t('btn_scan') }}
           </button>
         </div>
       </div>
       <div class="error" v-if="error">{{ error }}</div>
+      <div class="drag-banner" v-if="isDragging">
+        拖拽中：将移动 {{ dragFileIds.length }} 个文件 <span v-if="dragTargetLabel">→ {{ dragTargetLabel }}</span>
+        <span v-else style="color:var(--text-muted);margin-left:6px;">把文件拖到左侧分类即可归类</span>
+      </div>
 
       <!-- Batch Operations Bar -->
       <div v-if="showBatchBar" class="batch-bar">
@@ -409,9 +584,9 @@ window.FileScanner = {
         </div>
       </div>
 
-      <div class="cabinet-layout">
+      <div class="cabinet-layout" :style="{ display:'grid', gridTemplateColumns: catPanelWidth + 'px 10px 1fr' }">
         <!-- Category Tree -->
-        <div class="cat-panel card">
+        <div class="cat-panel card" :style="{ width: '100%' }">
           <div class="panel-title">分类管理</div>
           <div class="cat-tree">
             <!-- All files -->
@@ -421,17 +596,20 @@ window.FileScanner = {
               <span class="cat-count">{{ registeredFiles.length }}</span>
             </div>
             <!-- Unclassified -->
-            <div v-if="unclassifiedCount > 0"
-              :class="['cat-node', selectedCatId === 'unclassified' ? 'cat-node-active' : '']"
-              style="padding-left:8px;" @click="selectedCatId = 'unclassified'">
+            <div
+              :class="['cat-node', selectedCatId === 'unclassified' ? 'cat-node-active' : '', dragOverCatId === 'unclassified' ? 'cat-node-dropover' : '']"
+              style="padding-left:8px;" @click="selectedCatId = 'unclassified'"
+              @dragover="onCatDragOver('unclassified', $event)" @dragleave="onCatDragLeave('unclassified')" @drop="onCatDrop(null, $event)">
               <span class="cat-name" style="color:var(--amber);">未分类</span>
               <span class="cat-count" style="color:var(--amber);">{{ unclassifiedCount }}</span>
+              <span class="drop-hint" v-if="isDragging && dragOverCatId === 'unclassified'">松开移动</span>
             </div>
             <!-- Category nodes -->
             <template v-for="cat in flatCats" :key="cat.id">
               <div :style="{ paddingLeft: (cat.depth * 16 + 8) + 'px' }"
-                :class="['cat-node', selectedCatId === cat.id ? 'cat-node-active' : '']"
-                @click="selectedCatId = cat.id">
+                :class="['cat-node', selectedCatId === cat.id ? 'cat-node-active' : '', dragOverCatId === cat.id ? 'cat-node-dropover' : '']"
+                @click="selectedCatId = cat.id"
+                @dragover="onCatDragOver(cat.id, $event)" @dragleave="onCatDragLeave(cat.id)" @drop="onCatDrop(cat.id, $event)">
                 <!-- Rename mode -->
                 <template v-if="renamingCatId === cat.id">
                   <input v-model="renamingCatName" class="input input-sm" style="flex:1;"
@@ -443,6 +621,7 @@ window.FileScanner = {
                 <template v-else>
                   <span class="cat-name">{{ cat.name }}</span>
                   <span class="cat-count">{{ registeredFiles.filter(f => f.category_id === cat.id).length }}</span>
+                  <span class="drop-hint" v-if="isDragging && dragOverCatId === cat.id">松开移动</span>
                   <button class="btn-icon-add" title="上移" @click.stop="moveCat(cat.id, 'up')">↑</button>
                   <button class="btn-icon-add" title="下移" @click.stop="moveCat(cat.id, 'down')">↓</button>
                   <button class="btn-icon-add" title="重命名" @click.stop="startRename(cat)">✎</button>
@@ -450,6 +629,7 @@ window.FileScanner = {
                   <button class="btn-icon-add" title="导出压缩包" @click.stop="downloadCategoryZip(cat.id)">
                     {{ zipLoadingCatId === cat.id ? '…' : '⬇' }}
                   </button>
+                  <button class="btn-icon-add" title="打开文件夹" @click.stop="openCategoryDir(cat.id)">📁</button>
                   <button class="btn-icon-danger" @click.stop="deleteCategory(cat.id)">✕</button>
                 </template>
               </div>
@@ -468,9 +648,11 @@ window.FileScanner = {
             <button class="btn-sm" @click="addCategory()">添加</button>
           </div>
         </div>
+        <div class="panel-resizer" :class="{ 'resizing': isResizing }" @mousedown="startResize"
+             style="cursor: col-resize; background: var(--border);"></div>
 
         <!-- Files Panel -->
-        <div class="files-panel">
+        <div class="files-panel" :style="{ width: '100%' }">
           <div class="tabs">
             <button :class="['tab', activeTab === 'registered' ? 'active' : '']" @click="activeTab = 'registered'">
               已注册文件 ({{ filteredFiles.length }}{{ selectedCatId ? '/' + registeredFiles.length : '' }})
@@ -499,17 +681,23 @@ window.FileScanner = {
                     <th class="sortable-th" @click="toggleSort('file_name')">
                       文件名 <span class="sort-icon">{{ sortKey === 'file_name' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
                     </th>
+                    <th>路径</th>
                     <th>分类</th>
-                    <th class="sortable-th" @click="toggleSort('created_at')">
-                      入库时间 <span class="sort-icon">{{ sortKey === 'created_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+                    <th class="sortable-th" @click="toggleSort('registered_at')">
+                      入库时间 <span class="sort-icon">{{ sortKey === 'registered_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
                     </th>
                     <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="f in filteredFiles" :key="f.id" :class="{ 'selected-row': selectedFileIds.has(f.id) }">
+                  <tr v-for="f in filteredFiles" :key="f.id" :class="{ 'selected-row': selectedFileIds.has(f.id) }"
+                    draggable="true" @dragstart="onRowDragStart(f, $event)">
                     <td><input type="checkbox" :checked="selectedFileIds.has(f.id)" @change="toggleFileSelection(f.id)"></td>
-                    <td><span class="file-icon">📄</span> {{ f.file_name }}</td>
+                    <td>
+                      <span class="drag-handle" title="拖拽到左侧分类" draggable="true" @dragstart.stop="onFileDragStart(f, $event)">⠿</span>
+                      <span class="file-icon">📄</span> {{ f.file_name }}
+                    </td>
+                    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="f.file_path">{{ f.file_path }}</td>
                     <td>
                       <select :value="f.category_id" @change="updateFileCategory(f.id, $event.target.value)" class="input input-sm">
                         <option value="">— 未分类 —</option>
@@ -518,8 +706,9 @@ window.FileScanner = {
                         </option>
                       </select>
                     </td>
-                    <td class="time-cell">{{ f.created_at ? f.created_at.slice(0, 10) : '—' }}</td>
+                    <td class="time-cell">{{ (f.registered_at || f.created_at) ? (f.registered_at || f.created_at).slice(0, 10) : '—' }}</td>
                     <td>
+                      <button class="btn-icon" title="打开所在文件夹" @click="openFileDir(f.id)">📁</button>
                       <button class="btn-icon" title="版本历史" @click="openVersionHistory(f)">📋</button>
                       <button class="btn-icon-danger" @click="deleteFile(f.id)">✕</button>
                     </td>
@@ -548,13 +737,14 @@ window.FileScanner = {
                 <thead>
                   <tr>
                     <th><input type="checkbox" :checked="allChecked" @change="toggleSelectAll($event.target.checked)"></th>
-                    <th>文件名</th><th>建议分类</th><th>指定分类</th>
+                    <th>文件名</th><th>路径</th><th>建议分类</th><th>指定分类</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="f in scannedFiles" :key="f.file_path">
                     <td><input type="checkbox" v-model="selected[f.file_path].checked"></td>
                     <td>{{ f.file_name }}</td>
+                    <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="f.file_path">{{ f.file_path }}</td>
                     <td><span class="badge-suggested" v-if="f.suggested_category_name">{{ f.suggested_category_name }}</span></td>
                     <td>
                       <select v-model="selected[f.file_path].category_id" class="input input-sm">

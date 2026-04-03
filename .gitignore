@@ -5,6 +5,8 @@ __pycache__/
 data/*.db
 *.db-shm
 *.db-wal
+backups/*.zip
+debug.log
 .env
 *.egg-info/
 dist/
