@@ -53,16 +53,17 @@ const SearchPanel = {
             </span>
           </div>
           <div class="result-snippet" v-html="result.snippet"></div>
-          <div class="result-path">{{ result.file_path }}</div>
+          <div class="result-path" :title="result.file_path">{{ result.file_path }}</div>
         </div>
       </div>
 
       <div v-else class="search-tips">
-        <p>💡 搜索提示：</p>
-        <ul>
-          <li>支持 PDF、Word、TXT 等文档内容搜索</li>
-          <li>搜索结果会显示匹配的文本片段</li>
-        </ul>
+        <div class="search-empty-title">搜索文件内容</div>
+        <div class="search-empty-desc">输入 2 个以上字符开始搜索；回车立即搜索；Esc 退出。</div>
+        <div class="search-empty-list">
+          <div class="search-empty-item">支持 PDF、Word、TXT 等文档内容搜索</div>
+          <div class="search-empty-item">结果会展示匹配的文本片段</div>
+        </div>
       </div>
     </div>
   `,

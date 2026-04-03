@@ -4,14 +4,14 @@
 const DuplicateWarningModal = {
   template: `
     <div class="modal-overlay" @click.self="$emit('close')">
-      <div class="modal card" style="max-width: 600px;">
+      <div class="modal modal-lg">
         <div class="modal-header">
           <h3>⚠️ 发现重复文件</h3>
           <button class="btn-close" @click="$emit('close')">×</button>
         </div>
 
-        <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
-          <p style="margin-bottom: 16px; color: var(--text-secondary);">
+        <div class="modal-body">
+          <p class="modal-intro">
             扫描发现 <strong>{{ duplicateCount }}</strong> 个可能重复的文件
             （文件名和大小相同）
           </p>
@@ -51,13 +51,13 @@ const DuplicateWarningModal = {
             已选择跳过 {{ skipFiles.length }} 个文件
           </div>
           <div class="footer-actions">
-            <button class="btn btn-secondary" @click="skipAll">
+            <button class="btn-secondary" @click="skipAll">
               全部跳过
             </button>
-            <button class="btn btn-secondary" @click="keepAll">
+            <button class="btn-secondary" @click="keepAll">
               全部保留
             </button>
-            <button class="btn btn-primary" @click="confirm">
+            <button class="btn-primary" @click="confirm">
               确认 ({{ filesToRegister.length }} 个文件)
             </button>
           </div>

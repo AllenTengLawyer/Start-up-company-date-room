@@ -4,7 +4,7 @@
 const BatchRenameModal = {
   template: `
     <div class="modal-overlay" @click.self="$emit('close')">
-      <div class="modal card" style="max-width: 500px;">
+      <div class="modal modal-md">
         <div class="modal-header">
           <h3>批量重命名 ({{ fileCount }} 个文件)</h3>
           <button class="btn-close" @click="$emit('close')">×</button>
@@ -13,7 +13,7 @@ const BatchRenameModal = {
         <div class="modal-body">
           <div class="form-group">
             <label>命名规则</label>
-            <select v-model="pattern" class="form-control">
+            <select v-model="pattern" class="input">
               <option value="date">日期前缀 (YYYYMMDD_原文件名)</option>
               <option value="sequence">序号前缀 (001_原文件名)</option>
               <option value="prefix">自定义前缀</option>
@@ -23,17 +23,17 @@ const BatchRenameModal = {
 
           <div v-if="pattern === 'prefix'" class="form-group">
             <label>前缀文字</label>
-            <input v-model="prefix" class="form-control" placeholder="输入前缀">
+            <input v-model="prefix" class="input" placeholder="输入前缀">
           </div>
 
           <div v-if="pattern === 'suffix'" class="form-group">
             <label>后缀文字</label>
-            <input v-model="suffix" class="form-control" placeholder="输入后缀">
+            <input v-model="suffix" class="input" placeholder="输入后缀">
           </div>
 
           <div v-if="pattern === 'sequence'" class="form-group">
             <label>起始序号</label>
-            <input v-model.number="startNumber" type="number" min="1" class="form-control" style="width: 100px;">
+            <input v-model.number="startNumber" type="number" min="1" class="input input-sm" style="width: 120px;">
           </div>
 
           <div class="preview-section">
@@ -52,10 +52,13 @@ const BatchRenameModal = {
         </div>
 
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="$emit('close')">取消</button>
-          <button class="btn btn-primary" @click="confirm" :disabled="!canConfirm">
+          <div class="footer-info"></div>
+          <div class="footer-actions">
+            <button class="btn-text" @click="$emit('close')">取消</button>
+            <button class="btn-primary" @click="confirm" :disabled="!canConfirm">
             确认重命名
-          </button>
+            </button>
+          </div>
         </div>
       </div>
     </div>

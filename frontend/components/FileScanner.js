@@ -21,12 +21,15 @@ window.FileScanner = {
     const newSubCatName = Vue.ref('');
     const renamingCatId = Vue.ref(null);
     const renamingCatName = Vue.ref('');
+    const catMoreOpenId = Vue.ref(null);
     const sortKey = Vue.ref('registered_at');
     const sortDir = Vue.ref('desc');
     const zipLoadingCatId = Vue.ref(null);
     const error = Vue.ref('');
     const catPanelWidth = Vue.ref(360);
     const isResizing = Vue.ref(false);
+    const fileNameColWidth = Vue.ref(440);
+    const isNameColResizing = Vue.ref(false);
     const dragFileIds = Vue.ref([]);
     const dragOverCatId = Vue.ref(null);
     const isDragging = Vue.ref(false);
@@ -70,6 +73,9 @@ window.FileScanner = {
     const drawerSaving = Vue.ref(false);
     const drawerCategoryId = Vue.ref(null);
     const isDrawerResizing = Vue.ref(false);
+    const drawerX = Vue.ref(null);
+    const drawerY = Vue.ref(null);
+    const isDrawerDragging = Vue.ref(false);
 
     // Version history
     const showVersionModal = Vue.ref(false);
@@ -100,6 +106,7 @@ window.FileScanner = {
         params.set('unclassified', 'true');
       } else if (selectedCatId.value !== null && selectedCatId.value !== undefined) {
         params.set('category_id', String(selectedCatId.value));
+        params.set('include_descendants', 'true');
       }
       return params.toString();
     }
@@ -127,7 +134,32 @@ window.FileScanner = {
       const c = await api('GET', `/projects/${projectId.value}/files/counts`);
       totalFiles.value = c.total || 0;
       unclassifiedTotal.value = c.unclassified_count || 0;
-      categoryCounts.value = c.by_category || {};
+      const direct = c.direct_by_category || c.by_category || {};
+      function aggTree(nodes) {
+        let sum = 0;
+        for (const n of nodes || []) {
+          const id = n && n.id != null ? String(n.id) : '';
+          const selfCnt = direct[id] != null ? Number(direct[id] || 0) : Number(direct[Number(id)] || 0);
+          const childSum = aggTree(n.children || []);
+          sum += selfCnt + childSum;
+        }
+        return sum;
+      }
+      function buildAggMap(nodes, out) {
+        for (const n of nodes || []) {
+          const idStr = String(n.id);
+          const selfCnt = direct[idStr] != null ? Number(direct[idStr] || 0) : Number(direct[Number(idStr)] || 0);
+          let childTotal = 0;
+          if (Array.isArray(n.children) && n.children.length) {
+            childTotal = aggTree(n.children);
+            buildAggMap(n.children, out);
+          }
+          out[idStr] = selfCnt + childTotal;
+        }
+      }
+      const agg = {};
+      buildAggMap(categories.value || [], agg);
+      categoryCounts.value = agg;
     }
 
     async function load() {
@@ -325,8 +357,70 @@ window.FileScanner = {
       }
     }
 
-    async function openDetails(file) {
+    function clamp(n, min, max) {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return min;
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function placeDrawer(ev) {
+      const margin = 16;
+      const w = Math.max(320, Math.min(720, Number(drawerWidth.value) || 520));
+      const h = Math.min(720, Math.max(420, window.innerHeight - 40));
+
+      let x = Math.round(window.innerWidth - w - margin);
+      let y = Math.round(window.innerHeight * 0.10);
+
+      if (ev && typeof ev.clientX === 'number' && typeof ev.clientY === 'number') {
+        x = ev.clientX + 14;
+        y = ev.clientY - 40;
+      }
+
+      x = clamp(x, margin, window.innerWidth - w - margin);
+      y = clamp(y, margin, window.innerHeight - h - margin);
+
+      drawerX.value = x;
+      drawerY.value = y;
+    }
+
+    function startFloatingDrag(e) {
+      if (!e) return;
+      e.preventDefault();
+      isDrawerDragging.value = true;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startLeft = Number(drawerX.value) || 0;
+      const startTop = Number(drawerY.value) || 0;
+      const margin = 12;
+
+      function onMove(ev) {
+        const w = Math.max(320, Math.min(720, Number(drawerWidth.value) || 520));
+        const h = Math.min(720, Math.max(420, window.innerHeight - 40));
+        const left = startLeft + (ev.clientX - startX);
+        const top = startTop + (ev.clientY - startY);
+        drawerX.value = clamp(left, margin, window.innerWidth - w - margin);
+        drawerY.value = clamp(top, margin, window.innerHeight - h - margin);
+      }
+      function onUp() {
+        isDrawerDragging.value = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+
+    function centerFloatingDrawer() {
+      const margin = 16;
+      const w = Math.max(320, Math.min(720, Number(drawerWidth.value) || 520));
+      const h = Math.min(720, Math.max(420, window.innerHeight - 40));
+      drawerX.value = clamp(Math.round((window.innerWidth - w) / 2), margin, window.innerWidth - w - margin);
+      drawerY.value = clamp(Math.round((window.innerHeight - h) / 2), margin, window.innerHeight - h - margin);
+    }
+
+    async function openDetails(file, ev) {
       if (!file) return;
+      if (!drawerOpen.value) placeDrawer(ev);
       drawerOpen.value = true;
       drawerFileId.value = file.id;
       await loadDrawer(file.id);
@@ -394,6 +488,47 @@ window.FileScanner = {
     function startRename(cat) {
       renamingCatId.value = cat.id;
       renamingCatName.value = cat.name;
+    }
+
+    function toggleCatMore(catId) {
+      if (catId === null || catId === undefined) {
+        catMoreOpenId.value = null;
+        return;
+      }
+      catMoreOpenId.value = (catMoreOpenId.value === catId) ? null : catId;
+    }
+
+    function getTopBadge(name) {
+      const s = String(name || '').trim();
+      if (!s) return '•';
+      const normalized = s.replace(/^[\s\d\.\-_\(\)\[\]（）【】#、，,]+/, '');
+      const firstHan = (normalized.match(/[\u4e00-\u9fff]/) || [])[0];
+
+      if (firstHan) {
+        const c = firstHan;
+        try {
+          const collator = new Intl.Collator('zh-Hans-u-co-pinyin');
+          const bounds = [
+            ['阿', 'A'], ['芭', 'B'], ['擦', 'C'], ['搭', 'D'], ['蛾', 'E'],
+            ['发', 'F'], ['噶', 'G'], ['哈', 'H'], ['机', 'J'], ['喀', 'K'],
+            ['垃', 'L'], ['妈', 'M'], ['拿', 'N'], ['哦', 'O'], ['啪', 'P'],
+            ['期', 'Q'], ['然', 'R'], ['撒', 'S'], ['塌', 'T'], ['挖', 'W'],
+            ['昔', 'X'], ['压', 'Y'], ['匝', 'Z'],
+          ];
+          let out = 'Z';
+          for (let i = 0; i < bounds.length; i++) {
+            if (collator.compare(c, bounds[i][0]) >= 0) out = bounds[i][1];
+            else break;
+          }
+          return out;
+        } catch (e) {
+          return c;
+        }
+      }
+
+      const m = normalized.match(/[A-Za-z0-9]/);
+      if (m) return m[0].toUpperCase();
+      return normalized[0] || s[0];
     }
 
     async function confirmRename(catId) {
@@ -568,6 +703,29 @@ window.FileScanner = {
       window.addEventListener('mouseup', onUp);
     }
 
+    function startNameColResize(e) {
+      if (e) e.preventDefault();
+      isNameColResizing.value = true;
+      const startX = e.clientX;
+      const startW = fileNameColWidth.value;
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        fileNameColWidth.value = Math.max(280, Math.min(720, startW + dx));
+      }
+      function onUp() {
+        isNameColResizing.value = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+
+    function catHasChildren(catId) {
+      const c = flatCats.value.find(x => String(x.id) === String(catId));
+      return !!(c && Array.isArray(c.children) && c.children.length > 0);
+    }
+
     function startDrawerResize(e) {
       isDrawerResizing.value = true;
       const startX = e.clientX;
@@ -715,17 +873,29 @@ window.FileScanner = {
       window.addEventListener('dragend', resetDragState);
       window.addEventListener('drop', resetDragState);
       window.addEventListener('keydown', onKeydown);
+      window.addEventListener('click', onGlobalClick);
     });
     Vue.onBeforeUnmount(() => {
       window.removeEventListener('dragend', resetDragState);
       window.removeEventListener('drop', resetDragState);
       window.removeEventListener('keydown', onKeydown);
+      window.removeEventListener('click', onGlobalClick);
     });
 
+    function onGlobalClick() {
+      catMoreOpenId.value = null;
+    }
+
     function onKeydown(e) {
-      if (!showSearch.value) return;
       if (e && e.key === 'Escape') {
-        showSearch.value = false;
+        if (drawerOpen.value) {
+          closeDetails();
+          return;
+        }
+        if (showSearch.value) {
+          showSearch.value = false;
+          return;
+        }
       }
     }
 
@@ -742,7 +912,7 @@ window.FileScanner = {
       t, categories, flatCats, registeredFiles, filteredFiles, unclassifiedCount,
       scannedFiles, selected, scanning,
       activeTab, selectedCatId, addingSubCatId, newCatName, newSubCatName,
-      renamingCatId, renamingCatName, sortKey, sortDir, zipLoadingCatId, error, projectId, catPanelWidth, isResizing, dragOverCatId,
+      renamingCatId, renamingCatName, catMoreOpenId, sortKey, sortDir, zipLoadingCatId, error, projectId, catPanelWidth, isResizing, dragOverCatId,
       isDragging, dragFileIds, dragTargetLabel, toastMessage,
       totalFiles, filteredTotal, categoryCounts, pageNo, pageCount, canPrev, canNext,
       suggestedCount,
@@ -753,6 +923,7 @@ window.FileScanner = {
       toggleFileSelection, selectAllFiles, clearSelection,
       batchMoveToCategory, batchDelete, openBatchRename, handleBatchRename,
       selectedFilesForRename, startResize,
+      fileNameColWidth, isNameColResizing, startNameColResize,
       // Search
       showSearch,
       // Version history
@@ -761,14 +932,16 @@ window.FileScanner = {
       scan, autoCategorize, registerSelected, registerSuggested,
       updateFileCategory, deleteFile, openFileDir, openFile, openCategoryDir, addCategory, addSubCategory,
       startRename, confirmRename, moveCat, toggleSort, deleteCategory, downloadCategoryZip,
+      toggleCatMore,
       selectCategory, prevPage, nextPage,
       drawerOpen, drawerWidth, drawerFileId, drawerData, drawerLoading, drawerError, drawerNotes, drawerSaving,
-      drawerCategoryId, isDrawerResizing,
+      drawerCategoryId, isDrawerResizing, drawerX, drawerY, isDrawerDragging, startFloatingDrag,
+      centerFloatingDrawer,
       scanPagedFiles, scanPageNo, scanPageCount, scanCanPrev, scanCanNext, prevScanPage, nextScanPage,
       toggleSelectAllScanPage, allCheckedScanPage,
       drawerBreadcrumb,
       openDetails, closeDetails, saveDrawerNotes, saveDrawerCategory, copyText, getCatPath, formatBytes, formatDT, startDrawerResize,
-      onFileDragStart, onCatDragOver, onCatDragLeave, onCatDrop
+      onFileDragStart, onCatDragOver, onCatDragLeave, onCatDrop, getTopBadge
     };
   },
   template: `
@@ -848,30 +1021,33 @@ window.FileScanner = {
         </div>
       </div>
 
-      <div class="cabinet-layout" :style="{ display:'grid', gridTemplateColumns: catPanelWidth + 'px 10px 1fr' + (drawerOpen ? ' 10px ' + drawerWidth + 'px' : '') }">
+      <div class="cabinet-layout" :style="{ display:'grid', gridTemplateColumns: catPanelWidth + 'px 24px 1fr' }">
         <!-- Category Tree -->
         <div class="cat-panel card" :style="{ width: '100%' }">
           <div class="panel-title">分类管理</div>
           <div class="cat-tree">
             <!-- All files -->
-            <div :class="['cat-node', selectedCatId === null ? 'cat-node-active' : '']"
-              style="padding-left:8px;" @click="selectCategory(null)">
+            <div
+              :class="['cat-node', 'level-0', 'cat-node-special', selectedCatId === null ? 'cat-node-active' : '']"
+              style="padding-left:8px;"
+              @click="selectCategory(null)">
               <span class="cat-name">全部文件</span>
-              <span class="cat-count">{{ totalFiles }}</span>
+              <span class="cat-count-pill">{{ totalFiles }}</span>
             </div>
             <!-- Unclassified -->
             <div
-              :class="['cat-node', selectedCatId === 'unclassified' ? 'cat-node-active' : '', dragOverCatId === 'unclassified' ? 'cat-node-dropover' : '']"
-              style="padding-left:8px;" @click="selectCategory('unclassified')"
+              :class="['cat-node', 'level-0', 'cat-node-special', 'cat-node-unclassified', selectedCatId === 'unclassified' ? 'cat-node-active' : '', dragOverCatId === 'unclassified' ? 'cat-node-dropover' : '']"
+              style="padding-left:8px;"
+              @click="selectCategory('unclassified')"
               @dragover="onCatDragOver('unclassified', $event)" @dragleave="onCatDragLeave('unclassified')" @drop="onCatDrop(null, $event)">
-              <span class="cat-name" style="color:var(--amber);">未分类</span>
-              <span class="cat-count" style="color:var(--amber);">{{ unclassifiedCount }}</span>
+              <span class="cat-name">未分类</span>
+              <span :class="['cat-count-pill', 'emph']">{{ unclassifiedCount }}</span>
               <span class="drop-hint" v-if="isDragging && dragOverCatId === 'unclassified'">松开移动</span>
             </div>
             <!-- Category nodes -->
-            <template v-for="cat in flatCats" :key="cat.id">
-              <div :style="{ paddingLeft: (cat.depth * 16 + 8) + 'px' }"
-                :class="['cat-node', selectedCatId === cat.id ? 'cat-node-active' : '', dragOverCatId === cat.id ? 'cat-node-dropover' : '']"
+            <template v-for="(cat, idx) in flatCats" :key="cat.id">
+              <div :style="{ paddingLeft: (cat.depth * 16 + 8) + 'px', '--cat-indent': (cat.depth * 16 + 8) + 'px' }"
+                :class="['cat-node', cat.depth === 0 ? 'level-0' : 'cat-node-child', ('cat-depth-' + Math.min(cat.depth, 3)), (cat.depth > 1 ? 'cat-depth-2plus' : ''), (cat.depth === 0 && idx > 0 ? 'cat-group-divider' : ''), (idx > 0 && flatCats[idx-1] && flatCats[idx-1].depth === 0 && cat.depth > 0 ? 'cat-first-child' : ''), selectedCatId === cat.id ? 'cat-node-active' : '', dragOverCatId === cat.id ? 'cat-node-dropover' : '', catMoreOpenId === cat.id ? 'cat-node-more-open' : '']"
                 @click="selectCategory(cat.id)"
                 @dragover="onCatDragOver(cat.id, $event)" @dragleave="onCatDragLeave(cat.id)" @drop="onCatDrop(cat.id, $event)">
                 <!-- Rename mode -->
@@ -883,24 +1059,33 @@ window.FileScanner = {
                 </template>
                 <!-- Normal mode -->
                 <template v-else>
+                  <span class="cat-prefix">
+                    <span v-if="cat.depth === 0" class="cat-top-badge">{{ getTopBadge(cat.name) }}</span>
+                  </span>
                   <span class="cat-name">{{ cat.name }}</span>
-                  <span class="cat-count">{{ (categoryCounts && categoryCounts[cat.id]) ? categoryCounts[cat.id] : 0 }}</span>
+                  <span class="cat-count-pill">{{ (categoryCounts && categoryCounts[cat.id]) ? categoryCounts[cat.id] : 0 }}</span>
                   <span class="drop-hint" v-if="isDragging && dragOverCatId === cat.id">松开移动</span>
-                  <button class="btn-icon-add" title="上移" @click.stop="moveCat(cat.id, 'up')">↑</button>
-                  <button class="btn-icon-add" title="下移" @click.stop="moveCat(cat.id, 'down')">↓</button>
-                  <button class="btn-icon-add" title="重命名" @click.stop="startRename(cat)">✎</button>
-                  <button class="btn-icon-add" title="添加子分类" @click.stop="addingSubCatId = (addingSubCatId === cat.id ? null : cat.id); newSubCatName = ''">+</button>
-                  <button class="btn-icon-add" title="导出压缩包" @click.stop="downloadCategoryZip(cat.id)">
-                    {{ zipLoadingCatId === cat.id ? '…' : '⬇' }}
-                  </button>
-                  <button class="btn-icon-add" title="打开文件夹" @click.stop="openCategoryDir(cat.id)">📁</button>
-                  <button class="btn-icon-danger" @click.stop="deleteCategory(cat.id)">✕</button>
+                  <span class="cat-actions">
+                    <button class="btn-icon-add" title="添加子分类" @click.stop="addingSubCatId = (addingSubCatId === cat.id ? null : cat.id); newSubCatName = ''">+</button>
+                    <button class="btn-icon-add" title="更多" @click.stop="toggleCatMore(cat.id)">⋯</button>
+                    <button class="btn-icon-danger" @click.stop="deleteCategory(cat.id)">✕</button>
+                  </span>
+                  <div v-if="catMoreOpenId === cat.id" class="cat-more-menu" @click.stop>
+                    <button class="cat-more-item" @click.stop="catMoreOpenId = null; startRename(cat)">重命名</button>
+                    <button class="cat-more-item" @click.stop="catMoreOpenId = null; moveCat(cat.id, 'up')">上移</button>
+                    <button class="cat-more-item" @click.stop="catMoreOpenId = null; moveCat(cat.id, 'down')">下移</button>
+                    <div class="cat-more-divider"></div>
+                    <button class="cat-more-item" @click.stop="catMoreOpenId = null; downloadCategoryZip(cat.id)">
+                      {{ zipLoadingCatId === cat.id ? '导出中…' : '导出压缩包' }}
+                    </button>
+                    <button class="cat-more-item" @click.stop="catMoreOpenId = null; openCategoryDir(cat.id)">打开文件夹</button>
+                  </div>
                 </template>
               </div>
               <!-- Inline sub-cat input -->
               <div v-if="addingSubCatId === cat.id"
-                :style="{ paddingLeft: ((cat.depth + 1) * 16 + 8) + 'px' }"
-                class="sub-cat-input-row">
+                :style="{ paddingLeft: ((cat.depth + 1) * 16 + 8) + 'px', '--cat-indent': ((cat.depth + 1) * 16 + 8) + 'px' }"
+                class="sub-cat-input-row cat-node-child">
                 <input v-model="newSubCatName" class="input input-sm" placeholder="子分类名称..."
                   @keyup.enter="addSubCategory(cat.id)" @keyup.esc="addingSubCatId = null" autofocus>
                 <button class="btn-sm" @click="addSubCategory(cat.id)">确认</button>
@@ -912,8 +1097,7 @@ window.FileScanner = {
             <button class="btn-sm" @click="addCategory()">添加</button>
           </div>
         </div>
-        <div class="panel-resizer" :class="{ 'resizing': isResizing }" @mousedown="startResize"
-             style="cursor: col-resize; background: var(--border);"></div>
+        <div class="panel-resizer" :class="{ 'resizing': isResizing }" @mousedown="startResize"></div>
 
         <!-- Files Panel -->
         <div class="files-panel" :style="{ width: '100%' }">
@@ -937,20 +1121,28 @@ window.FileScanner = {
                   <input type="checkbox" @change="$event.target.checked ? selectAllFiles() : clearSelection()">
                   全选本页
                 </label>
-                <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-                  <button class="btn-secondary btn-sm" @click="prevPage" :disabled="!canPrev">上一页</button>
-                  <span style="color:var(--text-muted);">第 {{ pageNo }} / {{ pageCount }} 页</span>
-                  <button class="btn-secondary btn-sm" @click="nextPage" :disabled="!canNext">下一页</button>
+                <span v-if="selectedCount > 0" class="toolbar-hint">已选 {{ selectedCount }}</span>
+                <div class="table-toolbar__right">
+                  <button class="btn-secondary" @click="prevPage" :disabled="!canPrev">上一页</button>
+                  <span class="toolbar-muted">第 {{ pageNo }} / {{ pageCount }} 页</span>
+                  <button class="btn-secondary" @click="nextPage" :disabled="!canNext">下一页</button>
                 </div>
               </div>
               <table class="file-table">
+                <colgroup>
+                  <col style="width:40px;">
+                  <col :style="{ width: fileNameColWidth + 'px' }">
+                  <col style="width:190px;">
+                  <col style="width:110px;">
+                  <col style="width:112px;">
+                </colgroup>
                 <thead>
                   <tr>
-                    <th style="width: 40px;"><input type="checkbox" @change="$event.target.checked ? selectAllFiles() : clearSelection()"></th>
-                    <th class="sortable-th" @click="toggleSort('file_name')">
+                    <th class="col-check"><input type="checkbox" @change="$event.target.checked ? selectAllFiles() : clearSelection()"></th>
+                    <th class="sortable-th col-name" @click="toggleSort('file_name')">
                       文件名 <span class="sort-icon">{{ sortKey === 'file_name' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+                      <span class="col-resizer" @mousedown.stop="startNameColResize" @click.stop></span>
                     </th>
-                    <th>路径</th>
                     <th>分类</th>
                     <th class="sortable-th" @click="toggleSort('registered_at')">
                       入库时间 <span class="sort-icon">{{ sortKey === 'registered_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
@@ -961,12 +1153,13 @@ window.FileScanner = {
                 <tbody>
                   <tr v-for="f in filteredFiles" :key="f.id" :class="{ 'selected-row': selectedFileIds.has(f.id) }">
                     <td><input type="checkbox" :checked="selectedFileIds.has(f.id)" @change="toggleFileSelection(f.id)"></td>
-                    <td>
-                      <span class="drag-handle" title="拖拽到左侧分类" draggable="true" @dragstart.stop="onFileDragStart(f, $event)">⠿</span>
-                      <span class="file-icon">📄</span>
-                      <button class="btn-link" style="font-size:13px;" @click.stop="openDetails(f)">{{ f.file_name }}</button>
+                    <td class="col-name">
+                      <div class="file-name-cell">
+                        <span class="drag-handle" title="拖拽到左侧分类" draggable="true" @dragstart.stop="onFileDragStart(f, $event)">⠿</span>
+                        <span class="file-icon">📄</span>
+                        <button class="file-name-link" @click.stop="openDetails(f, $event)" :title="f.file_name">{{ f.file_name }}</button>
+                      </div>
                     </td>
-                    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="f.file_path">{{ f.file_path }}</td>
                     <td>
                       <select :value="f.category_id" @change="updateFileCategory(f.id, $event.target.value)" class="input input-sm">
                         <option value="">— 未分类 —</option>
@@ -977,8 +1170,11 @@ window.FileScanner = {
                     </td>
                     <td class="time-cell">{{ (f.registered_at || f.created_at) ? (f.registered_at || f.created_at).slice(0, 10) : '—' }}</td>
                     <td>
-                      <button class="btn-icon" title="打开所在文件夹" @click="openFileDir(f.id)">📁</button>
-                      <button class="btn-icon" title="详情" @click="openDetails(f)">🛈</button>
+                      <div class="row-actions">
+                        <button class="btn-icon" title="打开所在文件夹" @click="openFileDir(f.id)">📁</button>
+                        <button class="btn-icon" title="详情" @click="openDetails(f, $event)">🛈</button>
+                        <button class="btn-icon-danger" title="删除" @click="deleteFile(f.id)">🗑</button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -991,10 +1187,11 @@ window.FileScanner = {
             <div class="empty" v-if="scannedFiles.length === 0">{{ t('scan_empty') }}</div>
             <div v-else>
               <div class="scan-actions">
-                <span>{{ t('scan_found').replace('{n}', scannedFiles.length) }}
-                  <span style="color:var(--text-muted);margin-left:6px;">（{{ suggestedCount }} 个已有建议分类）</span>
-                </span>
-                <div style="display:flex;gap:6px;">
+                <div class="scan-actions__left">
+                  <span class="scan-actions__title">{{ t('scan_found').replace('{n}', scannedFiles.length) }}</span>
+                  <span class="scan-actions__meta">（{{ suggestedCount }} 个已有建议分类）</span>
+                </div>
+                <div class="scan-actions__right">
                   <button class="btn-secondary" @click="registerSuggested" v-if="suggestedCount > 0">
                     一键注册建议文件 ({{ suggestedCount }})
                   </button>
@@ -1006,24 +1203,25 @@ window.FileScanner = {
                   <input type="checkbox" :checked="allCheckedScanPage" @change="toggleSelectAllScanPage($event.target.checked)">
                   全选本页
                 </label>
-                <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-                  <button class="btn-secondary btn-sm" @click="prevScanPage" :disabled="!scanCanPrev">上一页</button>
-                  <span style="color:var(--text-muted);">第 {{ scanPageNo }} / {{ scanPageCount }} 页</span>
-                  <button class="btn-secondary btn-sm" @click="nextScanPage" :disabled="!scanCanNext">下一页</button>
+                <div class="table-toolbar__right">
+                  <button class="btn-secondary" @click="prevScanPage" :disabled="!scanCanPrev">上一页</button>
+                  <span class="toolbar-muted">第 {{ scanPageNo }} / {{ scanPageCount }} 页</span>
+                  <button class="btn-secondary" @click="nextScanPage" :disabled="!scanCanNext">下一页</button>
                 </div>
               </div>
               <table class="file-table">
                 <thead>
                   <tr>
                     <th></th>
-                    <th>文件名</th><th>路径</th><th>建议分类</th><th>指定分类</th>
+                    <th>文件名</th>
+                    <th>建议分类</th>
+                    <th>指定分类</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="f in scanPagedFiles" :key="f.file_path">
                     <td><input type="checkbox" v-model="selected[f.file_path].checked"></td>
-                    <td>{{ f.file_name }}</td>
-                    <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="f.file_path">{{ f.file_path }}</td>
+                    <td :title="f.file_path">{{ f.file_name }}</td>
                     <td><span class="badge-suggested" v-if="f.suggested_category_name">{{ f.suggested_category_name }}</span></td>
                     <td>
                       <select v-model="selected[f.file_path].category_id" class="input input-sm">
@@ -1038,17 +1236,18 @@ window.FileScanner = {
           </div>
         </div>
 
-        <div v-if="drawerOpen" class="panel-resizer" :class="{ 'resizing': isDrawerResizing }" @mousedown="startDrawerResize"
-             style="cursor: col-resize; background: var(--border);"></div>
+      </div>
 
-        <!-- Details Drawer -->
-        <div v-if="drawerOpen" class="details-drawer card" :style="{ width: drawerWidth + 'px' }">
-          <div class="details-header">
-            <div class="details-title">文件详情</div>
-            <button class="btn-icon" title="关闭" @click="closeDetails">×</button>
-          </div>
+      <!-- Floating Details Drawer -->
+        <div v-if="drawerOpen" class="floating-drawer" :style="{ left: (drawerX || 16) + 'px', top: (drawerY || 16) + 'px', width: drawerWidth + 'px' }">
+        <div class="floating-drawer-header" @mousedown.stop="startFloatingDrag" @dblclick.stop="centerFloatingDrawer">
+          <div class="details-title">文件详情</div>
+          <button class="btn-icon" title="关闭" @click="closeDetails">×</button>
+        </div>
+        <div class="floating-drawer-body">
           <div v-if="drawerData" class="details-subhead">
-            <button class="btn-link" @click="copyText(drawerBreadcrumb)">{{ drawerBreadcrumb }}</button>
+            <div class="drawer-breadcrumb">{{ drawerBreadcrumb }}</div>
+            <div class="drawer-path">{{ drawerData.file_path }}</div>
             <div class="details-badges">
               <span :class="['badge-pill', drawerData.indexed ? 'ok' : 'muted']">{{ drawerData.indexed ? '已索引' : '未索引' }}</span>
               <span class="badge-pill">版本 {{ drawerData.version_count || 0 }}</span>
@@ -1058,7 +1257,6 @@ window.FileScanner = {
           <div v-else-if="drawerError" class="error">{{ drawerError }}</div>
           <div v-else-if="drawerData" class="details-body">
             <div class="detail-row"><div class="detail-label">文件名</div><div class="detail-value">{{ drawerData.file_name }}</div></div>
-            <div class="detail-row"><div class="detail-label">路径</div><div class="detail-value path">{{ drawerData.file_path }}</div></div>
             <div class="detail-row">
               <div class="detail-label">分类</div>
               <div class="detail-value">
@@ -1068,9 +1266,8 @@ window.FileScanner = {
                     {{ '　'.repeat(c.depth) + c.name }}
                   </option>
                 </select>
-                <div v-if="drawerData.category_id" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
-                  <button class="btn-secondary btn-sm" @click="openCategoryDir(drawerData.category_id)">打开分类文件夹</button>
-                  <button class="btn-secondary btn-sm" @click="copyText(getCatPath(drawerData.category_id))">复制分类路径</button>
+                <div v-if="drawerData.category_id" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn-ghost" @click="openCategoryDir(drawerData.category_id)">打开分类文件夹</button>
                 </div>
               </div>
             </div>
@@ -1080,23 +1277,19 @@ window.FileScanner = {
             <div class="detail-row"><div class="detail-label">索引</div><div class="detail-value">{{ drawerData.indexed ? '已索引' : '未索引' }}</div></div>
             <div class="detail-row"><div class="detail-label">版本</div><div class="detail-value">{{ drawerData.version_count || 0 }}</div></div>
 
-            <div style="margin-top:10px;">
+            <div style="margin-top:14px;">
               <div class="detail-label" style="margin-bottom:6px;">备注</div>
               <textarea class="input" style="width:100%;min-height:120px;resize:vertical;"
                 v-model="drawerNotes" @blur="saveDrawerNotes" :disabled="drawerSaving"></textarea>
-              <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
-                <button class="btn-secondary btn-sm" @click="saveDrawerNotes" :disabled="drawerSaving">{{ drawerSaving ? '保存中…' : '保存备注' }}</button>
-                <button class="btn-secondary btn-sm" @click="copyText(drawerData.file_path)">复制相对路径</button>
+              <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+                <button class="btn-ghost" @click="saveDrawerNotes" :disabled="drawerSaving">{{ drawerSaving ? '保存中…' : '保存备注' }}</button>
               </div>
             </div>
 
-            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-              <button class="btn-secondary btn-sm" @click="openFile(drawerData.id)">打开文件</button>
-              <button class="btn-secondary btn-sm" @click="openFileDir(drawerData.id)">打开所在文件夹</button>
-              <button class="btn-secondary btn-sm" @click="openVersionHistory(drawerData)">版本历史</button>
-              <button class="btn-secondary btn-sm" @click="copyText(drawerData.file_path)">复制相对路径</button>
-              <button class="btn-secondary btn-sm" @click="copyText(drawerData.file_name)">复制文件名</button>
-              <button class="btn-danger btn-sm" @click="closeDetails(); deleteFile(drawerData.id)">删除</button>
+            <div class="drawer-actions">
+              <button class="btn-ghost" @click="openFile(drawerData.id)">打开文件</button>
+              <button class="btn-ghost" @click="openFileDir(drawerData.id)">打开所在文件夹</button>
+              <button class="btn-ghost" @click="openVersionHistory(drawerData)">版本历史</button>
             </div>
           </div>
           <div v-else class="empty">请选择一个文件查看详情</div>

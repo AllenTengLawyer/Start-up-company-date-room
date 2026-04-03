@@ -300,6 +300,7 @@ def list_files(
     limit: Optional[int] = Query(None, ge=1, le=500),
     offset: int = Query(0, ge=0),
     category_id: Optional[int] = Query(None, description="Filter by category id"),
+    include_descendants: bool = Query(False, description="Include descendant categories when filtering by category_id"),
     unclassified: bool = Query(False, description="Only files without category"),
     sort_key: str = Query("registered_at"),
     sort_dir: str = Query("desc")
@@ -328,8 +329,25 @@ def list_files(
         where = ["f.project_id=?"]
         params: List[object] = [project_id]
         if category_id is not None:
-            where.append("f.category_id=?")
-            params.append(category_id)
+            if include_descendants:
+                cats = db.execute(
+                    "SELECT id, parent_id FROM categories WHERE project_id=?",
+                    (project_id,)
+                ).fetchall()
+                target = {int(category_id)}
+                changed = True
+                while changed:
+                    changed = False
+                    for c in cats:
+                        if c["parent_id"] in target and c["id"] not in target:
+                            target.add(int(c["id"]))
+                            changed = True
+                placeholders = ",".join("?" * len(target))
+                where.append(f"f.category_id IN ({placeholders})")
+                params.extend(list(target))
+            else:
+                where.append("f.category_id=?")
+                params.append(category_id)
         elif unclassified:
             where.append("f.category_id IS NULL")
 
@@ -373,7 +391,7 @@ def file_counts(project_id: int):
             "SELECT category_id, COUNT(1) as cnt FROM files WHERE project_id=? GROUP BY category_id",
             (project_id,)
         ).fetchall()
-        by_category = {}
+        direct_by_category = {}
         total = 0
         unclassified_count = 0
         for r in rows:
@@ -382,8 +400,39 @@ def file_counts(project_id: int):
             if r["category_id"] is None:
                 unclassified_count = cnt
             else:
-                by_category[int(r["category_id"])] = cnt
-        return {"total": total, "unclassified_count": unclassified_count, "by_category": by_category}
+                direct_by_category[int(r["category_id"])] = cnt
+
+        cats = db.execute(
+            "SELECT id, parent_id FROM categories WHERE project_id=?",
+            (project_id,)
+        ).fetchall()
+        children = {}
+        for c in cats:
+            pid = c["parent_id"]
+            if pid is None:
+                continue
+            children.setdefault(int(pid), []).append(int(c["id"]))
+
+        agg_cache = {}
+        def agg(cid: int) -> int:
+            if cid in agg_cache:
+                return agg_cache[cid]
+            s = int(direct_by_category.get(cid, 0))
+            for ch in children.get(cid, []):
+                s += agg(ch)
+            agg_cache[cid] = s
+            return s
+
+        by_category = {}
+        for c in cats:
+            by_category[int(c["id"])] = agg(int(c["id"]))
+
+        return {
+            "total": total,
+            "unclassified_count": unclassified_count,
+            "by_category": by_category,
+            "direct_by_category": direct_by_category
+        }
     finally:
         db.close()
 

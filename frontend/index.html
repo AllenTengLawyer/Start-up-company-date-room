@@ -3,20 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>创业助手 · 公司文件整理系统</title>
+<title>More than managed</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.prod.js"></script>
 <script src="https://unpkg.com/vue-i18n@9/dist/vue-i18n.global.prod.js"></script>
-<link rel="stylesheet" href="/style.css?v=20260403_23">
+<link rel="stylesheet" href="/style.css?v=20260403_46">
 </head>
 <body>
 <div id="app">
   <div v-if="appReady" class="layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="logo">{{ $t('app_title') }}</div>
+        <div class="logo logo-brand">
+          <div class="logo-line logo-top">{{ $t('brand_line1') }}</div>
+          <div class="logo-line logo-bottom"><span class="logo-emph">{{ $t('brand_line2') }}</span></div>
+          <div class="logo-tag">{{ $t('brand_tag') }}</div>
+        </div>
         <div class="project-switcher" v-if="currentProject">
           <div class="project-switcher-name" @click="showProjectMenu = !showProjectMenu">
             <span>{{ currentProject.name }}</span>
@@ -25,13 +29,9 @@
           <div class="mode-badge">
             {{ currentProject.mode === 'early_team' ? $t('mode_early_team') : $t('mode_established') }}
           </div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
-            <div style="flex:1;min-width:0;font-size:11px;color:#718096;word-break:break-all;"
-              :title="currentProject.root_path">
-              {{ currentProject.root_path }}
-            </div>
-            <button class="btn-ghost" style="padding:2px 6px;font-size:12px;line-height:1;" title="打开根目录"
-              @click.stop="openProjectRoot">📁</button>
+          <div class="project-path-row">
+            <div class="project-path" :title="currentProject.root_path">{{ currentProject.root_path }}</div>
+            <button class="btn-icon" title="打开根目录" @click.stop="openProjectRoot">📁</button>
           </div>
           <div class="project-menu" v-if="showProjectMenu">
             <div v-for="p in appState.projects" :key="p.id"
@@ -47,16 +47,38 @@
         </div>
       </div>
       <nav v-if="currentProject">
-        <router-link v-if="currentProject.mode === 'early_team'" :to="`/project/${currentProject.id}/founders`">
-          {{ $t('nav_founders') }}
-        </router-link>
-        <router-link :to="`/project/${currentProject.id}/cabinet`">{{ $t('nav_cabinet') }}</router-link>
-        <router-link v-if="currentProject.mode === 'established'" :to="`/project/${currentProject.id}/ldd`">
-          {{ $t('nav_ldd') }}
-        </router-link>
-        <router-link v-if="currentProject.mode === 'established'" :to="`/project/${currentProject.id}/export`">
-          {{ $t('nav_export') }}
-        </router-link>
+        <div class="nav-links">
+          <router-link v-if="currentProject.mode === 'early_team'" :to="`/project/${currentProject.id}/founders`">
+            {{ $t('nav_founders') }}
+          </router-link>
+          <router-link :to="`/project/${currentProject.id}/cabinet`">{{ $t('nav_cabinet') }}</router-link>
+          <router-link v-if="currentProject.mode === 'established'" :to="`/project/${currentProject.id}/ldd`">
+            {{ $t('nav_ldd') }}
+          </router-link>
+          <router-link v-if="currentProject.mode === 'established'" :to="`/project/${currentProject.id}/export`">
+            {{ $t('nav_export') }}
+          </router-link>
+        </div>
+
+        <div class="author-card">
+          <div class="author-top">
+            <div class="author-avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 12c2.761 0 5-2.239 5-5S14.761 2 12 2 7 4.239 7 7s2.239 5 5 5Z" stroke="currentColor" stroke-width="2" />
+                <path d="M20 22a8 8 0 1 0-16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div class="author-meta">
+              <div class="author-name">{{ $t('author_name') }}</div>
+              <div class="author-role">{{ $t('author_role') }}</div>
+            </div>
+          </div>
+          <div class="author-quote">{{ $t('author_quote') }}</div>
+          <div class="author-contact">
+            <span class="author-contact-label">{{ $t('author_contact') }}</span>
+            <a class="author-email" :href="'mailto:' + $t('author_email')">{{ $t('author_email') }}</a>
+          </div>
+        </div>
       </nav>
       <div class="sidebar-footer">
         <button class="btn-lang" @click="toggleLang">{{ locale === 'zh' ? 'EN' : '中文' }}</button>
@@ -64,7 +86,12 @@
       </div>
     </aside>
     <main class="main-content">
-      <router-view :key="$route.fullPath" @project-created="onProjectCreated" @project-updated="loadProjects"></router-view>
+      <div class="main-stage">
+        <router-view :key="$route.fullPath" @project-created="onProjectCreated" @project-updated="loadProjects"></router-view>
+      </div>
+      <div v-if="currentProject && $route && String($route.path || '').includes('/cabinet')" class="main-illustration" aria-hidden="true">
+        <img src="/illustrations/chahua.png" alt="" loading="lazy" decoding="async">
+      </div>
     </main>
   </div>
   <div v-else class="loading">
@@ -75,15 +102,15 @@
   </div>
 </div>
 
-<script src="/components/DuplicateWarningModal.js?v=20260403_19"></script>
-<script src="/components/BatchRenameModal.js?v=20260403_19"></script>
-<script src="/components/VersionHistoryModal.js?v=20260403_19"></script>
-<script src="/components/SearchPanel.js?v=20260403_23"></script>
+<script src="/components/DuplicateWarningModal.js?v=20260403_39"></script>
+<script src="/components/BatchRenameModal.js?v=20260403_39"></script>
+<script src="/components/VersionHistoryModal.js?v=20260403_39"></script>
+<script src="/components/SearchPanel.js?v=20260403_41"></script>
 <script src="/components/TemplateManager.js?v=20260403_19"></script>
 <script src="/components/ProjectInit.js?v=20260403_19"></script>
 <script src="/components/FounderList.js?v=20260403_19"></script>
 <script src="/components/FounderDetail.js?v=20260403_19"></script>
-<script src="/components/FileScanner.js?v=20260403_23"></script>
+<script src="/components/FileScanner.js?v=20260403_41"></script>
 <script src="/components/LddView.js?v=20260403_19"></script>
 <script src="/components/ExportPanel.js?v=20260403_22"></script>
 <script src="/app.js?v=20260403_19"></script>

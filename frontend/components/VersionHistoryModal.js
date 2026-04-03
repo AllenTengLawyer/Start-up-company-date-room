@@ -4,18 +4,16 @@
 const VersionHistoryModal = {
   template: `
     <div class="modal-overlay" @click.self="$emit('close')">
-      <div class="modal card" style="max-width: 600px; max-height: 80vh;">
+      <div class="modal modal-lg modal-tall">
         <div class="modal-header">
           <h3>📋 版本历史: {{ fileName }}</h3>
           <button class="btn-close" @click="$emit('close')">×</button>
         </div>
 
-        <div class="modal-body" style="overflow-y: auto;">
-          <div v-if="loading" class="loading">加载中...</div>
+        <div class="modal-body">
+          <div v-if="loading" class="empty">加载中...</div>
 
-          <div v-else-if="versions.length === 0" class="empty-state">
-            暂无版本历史
-          </div>
+          <div v-else-if="versions.length === 0" class="empty">暂无版本历史</div>
 
           <div v-else class="version-list">
             <div
@@ -46,7 +44,7 @@ const VersionHistoryModal = {
 
               <div v-if="idx !== 0" class="version-actions">
                 <button
-                  class="btn-sm btn-secondary"
+                  class="btn-secondary btn-sm"
                   @click="confirmRollback(v)"
                   :disabled="rollingBack"
                 >
@@ -61,12 +59,14 @@ const VersionHistoryModal = {
           <div class="footer-info">
             共 {{ versions.length }} 个版本
           </div>
-          <button class="btn btn-secondary" @click="$emit('close')">关闭</button>
+          <div class="footer-actions">
+            <button class="btn-text" @click="$emit('close')">关闭</button>
+          </div>
         </div>
 
         <!-- Rollback Confirmation Modal -->
         <div v-if="showRollbackConfirm" class="modal-overlay" @click.self="showRollbackConfirm = false">
-          <div class="modal card" style="max-width: 400px;">
+          <div class="modal modal-md">
             <div class="modal-header">
               <h3>⚠️ 确认回滚</h3>
             </div>
@@ -80,8 +80,11 @@ const VersionHistoryModal = {
               </ul>
             </div>
             <div class="modal-footer">
-              <button class="btn btn-secondary" @click="showRollbackConfirm = false">取消</button>
-              <button class="btn btn-primary" @click="executeRollback">确认回滚</button>
+              <div class="footer-info"></div>
+              <div class="footer-actions">
+                <button class="btn-text" @click="showRollbackConfirm = false">取消</button>
+                <button class="btn-primary" @click="executeRollback">确认回滚</button>
+              </div>
             </div>
           </div>
         </div>
