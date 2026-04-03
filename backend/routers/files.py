@@ -1,4 +1,5 @@
 import os
+import html
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
@@ -173,6 +174,11 @@ def scan_directory(project_id: int):
         r["file_path"]: dict(r)
         for r in db.execute("SELECT file_path, file_name, file_size, content_hash FROM files WHERE project_id=?", (project_id,)).fetchall()
     }
+    registered_by_name_size = {}
+    for rp, info in registered.items():
+        key = (info.get("file_name"), info.get("file_size"))
+        if key not in registered_by_name_size:
+            registered_by_name_size[key] = rp
     categories = get_all_categories_flat(db, project_id)
     id_to_cat = {c["id"]: c for c in categories}
 
@@ -226,11 +232,7 @@ def scan_directory(project_id: int):
             last_modified = get_file_mtime(fpath)
 
             # Check for duplicates by name + size
-            dup_info = None
-            for reg_path, reg_info in registered.items():
-                if reg_info["file_name"] == fname and reg_info["file_size"] == file_size:
-                    dup_info = reg_path
-                    break
+            dup_info = registered_by_name_size.get((fname, file_size))
 
             suggested_id = suggest_category_by_path(rel_path) or suggest_category(fname, categories)
             file_info = {
@@ -293,17 +295,97 @@ def register_files(project_id: int, files: List[FileRegister]):
     return {"ids": ids}
 
 @router.get("/projects/{project_id}/files")
-def list_files(project_id: int):
+def list_files(
+    project_id: int,
+    limit: Optional[int] = Query(None, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    category_id: Optional[int] = Query(None, description="Filter by category id"),
+    unclassified: bool = Query(False, description="Only files without category"),
+    sort_key: str = Query("registered_at"),
+    sort_dir: str = Query("desc")
+):
     db = get_db()
-    rows = db.execute("""
-        SELECT f.*, c.name as category_name
-        FROM files f
-        LEFT JOIN categories c ON f.category_id = c.id
-        WHERE f.project_id=?
-        ORDER BY f.registered_at DESC
-    """, (project_id,)).fetchall()
-    db.close()
-    return [dict(r) for r in rows]
+    try:
+        if limit is None and offset == 0 and category_id is None and not unclassified and sort_key == "registered_at" and sort_dir == "desc":
+            rows = db.execute("""
+                SELECT f.*, c.name as category_name
+                FROM files f
+                LEFT JOIN categories c ON f.category_id = c.id
+                WHERE f.project_id=?
+                ORDER BY f.registered_at DESC
+            """, (project_id,)).fetchall()
+            return [dict(r) for r in rows]
+
+        allowed_sort = {
+            "registered_at": "f.registered_at",
+            "file_name": "f.file_name COLLATE NOCASE",
+            "file_size": "f.file_size",
+            "last_modified": "f.last_modified",
+        }
+        order_by = allowed_sort.get(sort_key, "f.registered_at")
+        direction = "ASC" if str(sort_dir).lower() == "asc" else "DESC"
+
+        where = ["f.project_id=?"]
+        params: List[object] = [project_id]
+        if category_id is not None:
+            where.append("f.category_id=?")
+            params.append(category_id)
+        elif unclassified:
+            where.append("f.category_id IS NULL")
+
+        where_sql = " AND ".join(where)
+
+        total = db.execute(
+            f"SELECT COUNT(1) as cnt FROM files f WHERE {where_sql}",
+            tuple(params)
+        ).fetchone()["cnt"]
+
+        unclassified_count = db.execute(
+            "SELECT COUNT(1) as cnt FROM files WHERE project_id=? AND category_id IS NULL",
+            (project_id,)
+        ).fetchone()["cnt"]
+
+        rows = db.execute(f"""
+            SELECT f.*, c.name as category_name
+            FROM files f
+            LEFT JOIN categories c ON f.category_id = c.id
+            WHERE {where_sql}
+            ORDER BY {order_by} {direction}
+            LIMIT ? OFFSET ?
+        """, (*params, limit, offset)).fetchall()
+
+        return {
+            "items": [dict(r) for r in rows],
+            "total": int(total),
+            "limit": int(limit),
+            "offset": int(offset),
+            "unclassified_count": int(unclassified_count),
+        }
+    finally:
+        db.close()
+
+
+@router.get("/projects/{project_id}/files/counts")
+def file_counts(project_id: int):
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT category_id, COUNT(1) as cnt FROM files WHERE project_id=? GROUP BY category_id",
+            (project_id,)
+        ).fetchall()
+        by_category = {}
+        total = 0
+        unclassified_count = 0
+        for r in rows:
+            cnt = int(r["cnt"])
+            total += cnt
+            if r["category_id"] is None:
+                unclassified_count = cnt
+            else:
+                by_category[int(r["category_id"])] = cnt
+        return {"total": total, "unclassified_count": unclassified_count, "by_category": by_category}
+    finally:
+        db.close()
 
 @router.put("/files/batch")
 def batch_update_category(req: BatchUpdateRequest):
@@ -326,12 +408,39 @@ def batch_update_category(req: BatchUpdateRequest):
         raise HTTPException(404, "未找到文件")
 
     # Update in transaction
-    for fid in existing_ids:
-        db.execute("UPDATE files SET category_id = ? WHERE id = ?", (req.category_id, fid))
+    placeholders_existing = ",".join("?" * len(existing_ids))
+    db.execute(
+        f"UPDATE files SET category_id = ? WHERE id IN ({placeholders_existing})",
+        (req.category_id, *existing_ids)
+    )
 
     db.commit()
     db.close()
     return {"ok": True, "updated": len(existing_ids)}
+
+@router.get("/files/{file_id}/details")
+def get_file_details(file_id: int):
+    db = get_db()
+    try:
+        row = db.execute("""
+            SELECT f.*, c.name as category_name, fc.extracted_at
+            FROM files f
+            LEFT JOIN categories c ON f.category_id = c.id
+            LEFT JOIN file_content fc ON fc.file_id = f.id
+            WHERE f.id=?
+        """, (file_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "文件不存在")
+        versions = db.execute(
+            "SELECT COUNT(1) as cnt FROM file_versions WHERE file_id=?",
+            (file_id,)
+        ).fetchone()["cnt"]
+        d = dict(row)
+        d["version_count"] = int(versions)
+        d["indexed"] = bool(d.get("extracted_at"))
+        return d
+    finally:
+        db.close()
 
 @router.put("/files/{file_id}")
 def update_file(file_id: int, data: FileUpdate):
@@ -418,23 +527,23 @@ def search_files(
 
     if fts_available:
         # Use FTS5 for search with snippets
-        query = q.replace("'", "''")  # Escape quotes
+        query = q
         sql = """
             SELECT f.id, f.file_name, f.file_path, f.category_id, c.name as category_name,
-                   snippet(file_content_fts, 0, '<mark>', '</mark>', '...', 64) as snippet,
-                   rank
+                   snippet(file_content_fts, 0, '[[[H]]]', '[[[/H]]]', '...', 64) as snippet,
+                   bm25(file_content_fts) as score
             FROM file_content_fts
             JOIN file_content fc ON file_content_fts.rowid = fc.file_id
             JOIN files f ON fc.file_id = f.id
             LEFT JOIN categories c ON f.category_id = c.id
             WHERE file_content_fts MATCH ? AND f.project_id = ?
-            ORDER BY rank
+            ORDER BY score
             LIMIT 50
         """
         params = [query, project_id]
         if category_id:
-            sql = sql.replace("ORDER BY rank", "AND f.category_id = ? ORDER BY rank")
-            params.insert(1, category_id)
+            sql = sql.replace("WHERE file_content_fts MATCH ? AND f.project_id = ?", "WHERE file_content_fts MATCH ? AND f.project_id = ? AND f.category_id = ?")
+            params.append(category_id)
 
         try:
             rows = db.execute(sql, params).fetchall()
@@ -462,6 +571,14 @@ def search_files(
 
         rows = db.execute(sql, params).fetchall()
         results = [dict(r) for r in rows]
+
+    for r in results:
+        s = r.get("snippet")
+        if s is None:
+            continue
+        safe = html.escape(s)
+        safe = safe.replace("[[[H]]]", "<mark>").replace("[[[/H]]]", "</mark>")
+        r["snippet"] = safe
 
     db.close()
     return {"query": q, "results": results, "count": len(results), "fts_enabled": fts_available}

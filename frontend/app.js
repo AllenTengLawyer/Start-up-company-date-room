@@ -3,13 +3,23 @@ const { createRouter, createWebHashHistory } = VueRouter;
 const { createI18n } = VueI18n;
 
 // API helper
-async function api(method, path, body) {
+async function api(method, path, body, extra) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (extra && typeof extra === 'object') {
+    if (extra.headers && typeof extra.headers === 'object') {
+      opts.headers = { ...opts.headers, ...extra.headers };
+    }
+    for (const [k, v] of Object.entries(extra)) {
+      if (k === 'headers') continue;
+      opts[k] = v;
+    }
+  }
   if (body) opts.body = JSON.stringify(body);
   let res;
   try {
     res = await fetch('/api' + path, opts);
   } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
     const msg = (e && e.message) ? e.message : String(e);
     throw new Error(`请求失败（可能后端未启动或已崩溃）：${msg}`);
   }

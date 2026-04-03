@@ -15,6 +15,12 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templa
 
 def get_report_data(project_id: int):
     from ..database import get_db
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        generated_at = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     db = get_db()
     project = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     if not project:
@@ -78,6 +84,7 @@ def get_report_data(project_id: int):
         "partial": partial,
         "na": na,
         "pending": total - provided - partial - na,
+        "generated_at": generated_at,
     }
 
 @router.get("/projects/{project_id}/export/html")
@@ -261,7 +268,8 @@ def export_json(project_id: int):
     db.close()
 
     project_name = dict(project)["name"].replace(" ", "_")
-    filename = f"backup_{project_name}_{project_id}.json"
+    safe_project = re.sub(r"[^A-Za-z0-9_.-]+", "_", project_name).strip("._") or f"project_{project_id}"
+    filename = f"backup_{safe_project}_{project_id}.json"
     content = json.dumps(data, ensure_ascii=False, indent=2)
     return StreamingResponse(
         io.BytesIO(content.encode("utf-8")),

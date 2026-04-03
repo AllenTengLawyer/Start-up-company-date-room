@@ -24,6 +24,9 @@ class ModeUpdate(BaseModel):
 class OpenFileDirRequest(BaseModel):
     file_id: int
 
+class OpenFileRequest(BaseModel):
+    file_id: int
+
 class OpenCategoryDirRequest(BaseModel):
     category_id: int
 
@@ -175,6 +178,24 @@ def open_file_dir(project_id: int, data: OpenFileDirRequest):
     full = os.path.normpath(os.path.join(proj["root_path"], f["file_path"].replace("/", os.sep)))
     folder = os.path.dirname(full)
     _open_in_explorer(folder if folder else proj["root_path"])
+    return {"ok": True}
+
+@router.api_route("/projects/{project_id}/open-file", methods=["GET", "POST"])
+def open_file(project_id: int, data: OpenFileRequest):
+    db = get_db()
+    proj = db.execute("SELECT root_path FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not proj:
+        db.close()
+        raise HTTPException(404, "项目不存在")
+    f = db.execute(
+        "SELECT file_path FROM files WHERE id=? AND project_id=?",
+        (data.file_id, project_id)
+    ).fetchone()
+    db.close()
+    if not f:
+        raise HTTPException(404, "文件不存在")
+    full = os.path.normpath(os.path.join(proj["root_path"], f["file_path"].replace("/", os.sep)))
+    _open_in_explorer(full)
     return {"ok": True}
 
 @router.api_route("/projects/{project_id}/open-category-dir", methods=["GET", "POST"])

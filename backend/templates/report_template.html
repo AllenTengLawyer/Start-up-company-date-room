@@ -39,7 +39,7 @@
 <h1>法律尽职调查就绪报告</h1>
 <div class="meta">
   公司：{{ project.name }} &nbsp;|&nbsp;
-  生成时间：{% now 'Asia/Shanghai', '%Y-%m-%d %H:%M' %} &nbsp;|&nbsp;
+  生成时间：{{ generated_at }} &nbsp;|&nbsp;
   仅供内部使用
 </div>
 
@@ -55,7 +55,7 @@
 </div>
 
 {% for section in sections %}
-<h2>§{{ section.section_no }} {{ section.items[0].title.split('：')[0] if section.items else '' }}</h2>
+<h2>§{{ section.section_no }} {{ section['items'][0].title.split('：')[0] if section['items'] else '' }}</h2>
 <table>
   <thead>
     <tr>
@@ -67,7 +67,7 @@
     </tr>
   </thead>
   <tbody>
-    {% for item in section.items %}
+    {% for item in section['items'] %}
     <tr>
       <td>{{ item.item_no }}</td>
       <td>{{ item.title }}</td>

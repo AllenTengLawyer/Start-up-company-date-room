@@ -5,6 +5,9 @@ const SearchPanel = {
   template: `
     <div class="search-panel">
       <div class="search-input-wrapper">
+        <button class="btn-search-back" @click="$emit('close')" title="退出搜索">
+          ←
+        </button>
         <input
           v-model="query"
           @input="onInput"
@@ -18,6 +21,9 @@ const SearchPanel = {
         </button>
         <button v-if="query" class="btn-clear" @click="clear">
           ×
+        </button>
+        <button class="btn-search-exit" @click="$emit('close')">
+          返回
         </button>
       </div>
 
@@ -76,7 +82,8 @@ const SearchPanel = {
       hasSearched: false,
       ftsEnabled: true,
       debounceTimer: null,
-      error: ''
+      error: '',
+      abortController: null
     }
   },
 
@@ -91,19 +98,34 @@ const SearchPanel = {
     async search() {
       if (!this.query.trim()) return
 
+      if (this.abortController) {
+        try { this.abortController.abort(); } catch (e) {}
+      }
+      const controller = new AbortController()
+      this.abortController = controller
+
       this.loading = true
       this.error = ''
       try {
-        const data = await api('GET', `/projects/${this.projectId}/search?q=${encodeURIComponent(this.query)}`)
+        const data = await api(
+          'GET',
+          `/projects/${this.projectId}/search?q=${encodeURIComponent(this.query)}`,
+          null,
+          { signal: controller.signal }
+        )
         this.results = data.results || []
         this.ftsEnabled = data.fts_enabled
         this.hasSearched = true
       } catch (e) {
+        if (e && e.name === 'AbortError') return
         this.error = (e && e.message) ? e.message : '搜索失败'
         this.results = []
         this.hasSearched = true
       } finally {
-        this.loading = false
+        if (this.abortController === controller) {
+          this.loading = false
+          this.abortController = null
+        }
       }
     },
 

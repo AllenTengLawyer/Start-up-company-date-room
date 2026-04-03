@@ -17,7 +17,8 @@ window.ExportPanel = {
     Vue.onMounted(async () => {
       try {
         const proj = await api('GET', `/projects/${projectId.value}`);
-        destPath.value = proj.root_path + '_export';
+        const root = String(proj.root_path || '').replace(/[\\\/]+$/, '');
+        destPath.value = root ? (root + '/_export') : '';
       } catch(e) {}
     });
 
@@ -26,15 +27,29 @@ window.ExportPanel = {
       try {
         const res = await fetch(`/api/projects/${projectId.value}/export/pdf`);
         if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail);
+          const contentType = (res.headers.get('content-type') || '').toLowerCase();
+          if (contentType.includes('application/json')) {
+            const err = await res.json().catch(() => ({ detail: res.statusText }));
+            const detail = err && Object.prototype.hasOwnProperty.call(err, 'detail') ? err.detail : null;
+            throw new Error(typeof detail === 'string' ? detail : (detail ? JSON.stringify(detail) : res.statusText));
+          }
+          const text = await res.text().catch(() => '');
+          throw new Error(text || res.statusText);
         }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = `DD_Report_${projectId.value}.pdf`;
         a.click(); URL.revokeObjectURL(url);
-      } catch(e) { error.value = e.message; }
+      } catch(e) {
+        const msg = e && e.message ? e.message : String(e);
+        if (msg.includes('cannot load library') || msg.includes('PDF生成失败')) {
+          error.value = '当前环境无法生成 PDF（缺少系统组件）。已改为打开 HTML 预览，请在浏览器中“打印”另存为 PDF。';
+          exportHtml();
+        } else {
+          error.value = msg;
+        }
+      }
       finally { loading.value = false; }
     }
 
@@ -52,10 +67,28 @@ window.ExportPanel = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dest_path: destPath.value.trim() })
         });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+        if (!res.ok) {
+          const contentType = (res.headers.get('content-type') || '').toLowerCase();
+          if (contentType.includes('application/json')) {
+            const e = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(e.detail || res.statusText);
+          }
+          const text = await res.text().catch(() => '');
+          throw new Error(text || res.statusText);
+        }
         folderResult.value = await res.json();
       } catch(e) { error.value = e.message; }
       finally { folderLoading.value = false; }
+    }
+
+    async function pickDestFolder() {
+      error.value = '';
+      try {
+        const res = await api('POST', '/browse-folder');
+        if (res && res.path) destPath.value = res.path;
+      } catch (e) {
+        error.value = (e && e.message) ? e.message : String(e);
+      }
     }
 
     async function exportJson() {
@@ -98,6 +131,7 @@ window.ExportPanel = {
 
     return { t, loading, error, exportPdf, exportHtml,
              destPath, folderLoading, folderResult, showSkipped, exportFolder,
+             pickDestFolder,
              jsonLoading, importLoading, importResult, exportJson, importJson };
   },
   template: `
@@ -136,6 +170,7 @@ window.ExportPanel = {
           <div style="display:flex;align-items:center;gap:8px;padding-left:56px;">
             <label style="font-size:12px;color:#4a5568;white-space:nowrap;">{{ t('export_folder_dest') }}</label>
             <input v-model="destPath" class="input input-sm" style="flex:1;" placeholder="目标文件夹路径...">
+            <button class="btn-ghost" @click="pickDestFolder" :disabled="folderLoading">选择...</button>
           </div>
           <div v-if="folderResult" style="padding-left:56px;font-size:12px;">
             <div style="color:#276749;">✓ {{ t('export_folder_success').replace('{n}', folderResult.copied) }}</div>

@@ -47,6 +47,30 @@ window.FileScanner = {
     // Search panel
     const showSearch = Vue.ref(false);
 
+    // Pagination + counts
+    const totalFiles = Vue.ref(0);
+    const filteredTotal = Vue.ref(0);
+    const unclassifiedTotal = Vue.ref(0);
+    const categoryCounts = Vue.ref({});
+    const pageSize = Vue.ref(200);
+    const pageOffset = Vue.ref(0);
+
+    // Scan pagination
+    const scanPageSize = Vue.ref(200);
+    const scanOffset = Vue.ref(0);
+
+    // Details drawer
+    const drawerOpen = Vue.ref(false);
+    const drawerWidth = Vue.ref(380);
+    const drawerFileId = Vue.ref(null);
+    const drawerData = Vue.ref(null);
+    const drawerLoading = Vue.ref(false);
+    const drawerError = Vue.ref('');
+    const drawerNotes = Vue.ref('');
+    const drawerSaving = Vue.ref(false);
+    const drawerCategoryId = Vue.ref(null);
+    const isDrawerResizing = Vue.ref(false);
+
     // Version history
     const showVersionModal = Vue.ref(false);
     const versionFileId = Vue.ref(null);
@@ -63,8 +87,48 @@ window.FileScanner = {
     const flatCats = Vue.computed(() => flattenCats(categories.value));
 
     const unclassifiedCount = Vue.computed(() =>
-      registeredFiles.value.filter(f => !f.category_id).length
+      unclassifiedTotal.value || 0
     );
+
+    function buildFilesQuery() {
+      const params = new URLSearchParams();
+      params.set('limit', String(pageSize.value));
+      params.set('offset', String(pageOffset.value));
+      params.set('sort_key', String(sortKey.value || 'registered_at'));
+      params.set('sort_dir', String(sortDir.value || 'desc'));
+      if (selectedCatId.value === 'unclassified') {
+        params.set('unclassified', 'true');
+      } else if (selectedCatId.value !== null && selectedCatId.value !== undefined) {
+        params.set('category_id', String(selectedCatId.value));
+      }
+      return params.toString();
+    }
+
+    async function loadFilesPage() {
+      const res = await api('GET', `/projects/${projectId.value}/files?${buildFilesQuery()}`);
+      if (Array.isArray(res)) {
+        registeredFiles.value = res;
+        filteredTotal.value = res.length;
+        return;
+      }
+      registeredFiles.value = res.items || [];
+      filteredTotal.value = res.total || 0;
+      if (typeof res.unclassified_count === 'number') unclassifiedTotal.value = res.unclassified_count;
+      if (pageOffset.value > 0 && pageOffset.value >= filteredTotal.value) {
+        pageOffset.value = Math.max(0, pageOffset.value - pageSize.value);
+        await loadFilesPage();
+      }
+      if (drawerOpen.value && drawerFileId.value) {
+        loadDrawer(drawerFileId.value);
+      }
+    }
+
+    async function loadCounts() {
+      const c = await api('GET', `/projects/${projectId.value}/files/counts`);
+      totalFiles.value = c.total || 0;
+      unclassifiedTotal.value = c.unclassified_count || 0;
+      categoryCounts.value = c.by_category || {};
+    }
 
     async function load() {
       error.value = '';
@@ -72,16 +136,19 @@ window.FileScanner = {
         try {
           await api('POST', `/projects/${projectId.value}/ensure-seeded`);
         } catch (e) { error.value = e.message || String(e); }
-        const [cats, files] = await Promise.all([
+        const [cats] = await Promise.all([
           api('GET', `/projects/${projectId.value}/categories`),
-          api('GET', `/projects/${projectId.value}/files`),
         ]);
         categories.value = cats;
-        registeredFiles.value = files;
+        await Promise.all([loadCounts(), loadFilesPage()]);
       } catch (e) {
         error.value = e.message || String(e);
         categories.value = [];
         registeredFiles.value = [];
+        totalFiles.value = 0;
+        filteredTotal.value = 0;
+        unclassifiedTotal.value = 0;
+        categoryCounts.value = {};
       }
     }
 
@@ -90,6 +157,7 @@ window.FileScanner = {
       try {
         const res = await api('POST', `/projects/${projectId.value}/scan`);
         scannedFiles.value = res.files;
+        scanOffset.value = 0;
         selected.value = {};
         res.files.forEach(f => {
           selected.value[f.file_path] = { checked: true, category_id: f.suggested_category_id };
@@ -120,6 +188,7 @@ window.FileScanner = {
     function handleDuplicateClose() {
       showDuplicateModal.value = false;
       scannedFiles.value = pendingFiles.value.length ? pendingFiles.value : scannedFiles.value;
+      scanOffset.value = 0;
       selected.value = {};
       scannedFiles.value.forEach(f => {
         selected.value[f.file_path] = { checked: true, category_id: f.suggested_category_id };
@@ -134,6 +203,7 @@ window.FileScanner = {
       // Update scannedFiles to only include non-skipped files
       const keepPaths = new Set(filesToRegister.map(f => f.file_path));
       scannedFiles.value = pendingFiles.value.filter(f => keepPaths.has(f.file_path));
+      scanOffset.value = 0;
       selected.value = {};
       scannedFiles.value.forEach(f => {
         selected.value[f.file_path] = { checked: true, category_id: f.suggested_category_id };
@@ -143,12 +213,28 @@ window.FileScanner = {
       activeTab.value = 'scan';
     }
 
-    function toggleSelectAll(val) {
-      scannedFiles.value.forEach(f => { selected.value[f.file_path].checked = val; });
+    const scanTotal = Vue.computed(() => scannedFiles.value.length);
+    const scanPageCount = Vue.computed(() => Math.max(1, Math.ceil(scanTotal.value / scanPageSize.value)));
+    const scanPageNo = Vue.computed(() => Math.floor(scanOffset.value / scanPageSize.value) + 1);
+    const scanCanPrev = Vue.computed(() => scanOffset.value > 0);
+    const scanCanNext = Vue.computed(() => (scanOffset.value + scanPageSize.value) < scanTotal.value);
+    const scanPagedFiles = Vue.computed(() => scannedFiles.value.slice(scanOffset.value, scanOffset.value + scanPageSize.value));
+
+    function prevScanPage() {
+      if (!scanCanPrev.value) return;
+      scanOffset.value = Math.max(0, scanOffset.value - scanPageSize.value);
+    }
+    function nextScanPage() {
+      if (!scanCanNext.value) return;
+      scanOffset.value = scanOffset.value + scanPageSize.value;
     }
 
-    const allChecked = Vue.computed(() =>
-      scannedFiles.value.length > 0 && scannedFiles.value.every(f => selected.value[f.file_path]?.checked)
+    function toggleSelectAllScanPage(val) {
+      scanPagedFiles.value.forEach(f => { selected.value[f.file_path].checked = val; });
+    }
+
+    const allCheckedScanPage = Vue.computed(() =>
+      scanPagedFiles.value.length > 0 && scanPagedFiles.value.every(f => selected.value[f.file_path]?.checked)
     );
     const suggestedCount = Vue.computed(() =>
       scannedFiles.value.filter(f => f.suggested_category_id).length
@@ -173,6 +259,9 @@ window.FileScanner = {
       if (!toRegister.length) return;
       await api('POST', `/projects/${projectId.value}/files`, toRegister);
       scannedFiles.value = scannedFiles.value.filter(f => !selected.value[f.file_path]?.checked);
+      if (scanOffset.value > 0 && scanOffset.value >= scannedFiles.value.length) {
+        scanOffset.value = Math.max(0, scanOffset.value - scanPageSize.value);
+      }
       await load();
     }
 
@@ -203,11 +292,93 @@ window.FileScanner = {
       }
     }
 
+    async function openFile(fileId) {
+      try {
+        await api('POST', `/projects/${projectId.value}/open-file`, { file_id: fileId });
+      } catch (e) {
+        error.value = e.message || String(e);
+      }
+    }
+
     async function openCategoryDir(catId) {
       try {
         await api('POST', `/projects/${projectId.value}/open-category-dir`, { category_id: catId });
       } catch (e) {
         error.value = e.message || String(e);
+      }
+    }
+
+    async function loadDrawer(fileId) {
+      if (!fileId) return;
+      drawerLoading.value = true;
+      drawerError.value = '';
+      try {
+        const d = await api('GET', `/files/${fileId}/details`);
+        drawerData.value = d;
+        drawerNotes.value = d && typeof d.notes === 'string' ? d.notes : (d?.notes || '');
+        drawerCategoryId.value = d ? (d.category_id ?? '') : '';
+      } catch (e) {
+        drawerError.value = e.message || String(e);
+        drawerData.value = null;
+      } finally {
+        drawerLoading.value = false;
+      }
+    }
+
+    async function openDetails(file) {
+      if (!file) return;
+      drawerOpen.value = true;
+      drawerFileId.value = file.id;
+      await loadDrawer(file.id);
+    }
+
+    function closeDetails() {
+      drawerOpen.value = false;
+      drawerFileId.value = null;
+      drawerData.value = null;
+      drawerError.value = '';
+      drawerNotes.value = '';
+      drawerCategoryId.value = '';
+      drawerSaving.value = false;
+    }
+
+    async function saveDrawerNotes() {
+      if (!drawerFileId.value) return;
+      drawerSaving.value = true;
+      try {
+        await api('PUT', `/files/${drawerFileId.value}`, { notes: drawerNotes.value });
+        showToast('备注已保存');
+        await loadDrawer(drawerFileId.value);
+      } catch (e) {
+        drawerError.value = e.message || String(e);
+      } finally {
+        drawerSaving.value = false;
+      }
+    }
+
+    async function saveDrawerCategory() {
+      if (!drawerFileId.value) return;
+      const raw = drawerCategoryId.value;
+      const cid = raw === '' || raw === null || raw === undefined ? null : parseInt(raw, 10);
+      drawerSaving.value = true;
+      try {
+        await api('PUT', `/files/${drawerFileId.value}`, { category_id: Number.isFinite(cid) ? cid : null });
+        showToast('分类已更新');
+        await Promise.all([loadCounts(), loadFilesPage()]);
+      } catch (e) {
+        drawerError.value = e.message || String(e);
+      } finally {
+        drawerSaving.value = false;
+      }
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(String(text || ''));
+        showToast('已复制');
+      } catch (e) {
+        const v = prompt('复制到剪贴板（手动 Ctrl+C）：', String(text || ''));
+        if (v !== null) showToast('已复制');
       }
     }
 
@@ -254,6 +425,36 @@ window.FileScanner = {
     function toggleSort(key) {
       if (sortKey.value === key) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
       else { sortKey.value = key; sortDir.value = 'asc'; }
+      pageOffset.value = 0;
+      loadFilesPage();
+    }
+
+    function selectCategory(catId) {
+      selectedCatId.value = catId;
+      pageOffset.value = 0;
+      clearSelection();
+      loadFilesPage();
+    }
+
+    const pageNo = Vue.computed(() => Math.floor(pageOffset.value / pageSize.value) + 1);
+    const pageCount = Vue.computed(() => {
+      const total = filteredTotal.value || 0;
+      return Math.max(1, Math.ceil(total / pageSize.value));
+    });
+    const canPrev = Vue.computed(() => pageOffset.value > 0);
+    const canNext = Vue.computed(() => (pageOffset.value + pageSize.value) < (filteredTotal.value || 0));
+
+    function prevPage() {
+      if (!canPrev.value) return;
+      pageOffset.value = Math.max(0, pageOffset.value - pageSize.value);
+      clearSelection();
+      loadFilesPage();
+    }
+    function nextPage() {
+      if (!canNext.value) return;
+      pageOffset.value = pageOffset.value + pageSize.value;
+      clearSelection();
+      loadFilesPage();
     }
 
     async function addCategory(parentId = null) {
@@ -301,6 +502,43 @@ window.FileScanner = {
       return c ? c.name : '分类';
     }
 
+    function getCatPath(catId) {
+      if (catId == null) return '';
+      const idTo = {};
+      for (const c of flatCats.value) idTo[c.id] = c;
+      const parts = [];
+      let cur = catId;
+      while (cur != null && idTo[cur]) {
+        parts.push(idTo[cur].name);
+        cur = idTo[cur].parent_id;
+      }
+      return parts.reverse().join('/');
+    }
+
+    function formatBytes(n) {
+      const v = Number(n || 0);
+      if (!Number.isFinite(v) || v <= 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let i = 0;
+      let x = v;
+      while (x >= 1024 && i < units.length - 1) {
+        x /= 1024;
+        i++;
+      }
+      return `${x >= 10 || i === 0 ? Math.round(x) : x.toFixed(1)} ${units[i]}`;
+    }
+
+    function formatDT(s) {
+      if (!s) return '—';
+      return String(s).slice(0, 19).replace('T', ' ');
+    }
+
+    const drawerBreadcrumb = Vue.computed(() => {
+      if (!drawerData.value) return '';
+      const cat = drawerData.value.category_id ? getCatPath(drawerData.value.category_id) : '未分类';
+      return `${cat} / ${drawerData.value.file_name || ''}`;
+    });
+
     function resetDragState() {
       isDragging.value = false;
       dragFileIds.value = [];
@@ -312,12 +550,37 @@ window.FileScanner = {
       isResizing.value = true;
       const startX = e.clientX;
       const startW = catPanelWidth.value;
+      const startDrawerW = drawerWidth.value;
       function onMove(ev) {
         const dx = ev.clientX - startX;
         catPanelWidth.value = Math.max(240, Math.min(720, startW + dx));
+        if (drawerOpen.value) {
+          const rightDelta = dx;
+          drawerWidth.value = Math.max(320, Math.min(720, startDrawerW - rightDelta));
+        }
       }
       function onUp() {
         isResizing.value = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+
+    function startDrawerResize(e) {
+      isDrawerResizing.value = true;
+      const startX = e.clientX;
+      const startW = drawerWidth.value;
+      const startCatW = catPanelWidth.value;
+      function onMove(ev) {
+        const dx = startX - ev.clientX;
+        drawerWidth.value = Math.max(320, Math.min(720, startW + dx));
+        const catDelta = dx;
+        catPanelWidth.value = Math.max(240, Math.min(720, startCatW - catDelta));
+      }
+      function onUp() {
+        isDrawerResizing.value = false;
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
       }
@@ -334,15 +597,6 @@ window.FileScanner = {
         ev.dataTransfer.effectAllowed = 'move';
         ev.dataTransfer.setData('text/plain', ids.join(','));
       }
-    }
-
-    function onRowDragStart(file, ev) {
-      const tag = (ev?.target?.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'button' || tag === 'select' || tag === 'textarea') {
-        ev.preventDefault();
-        return;
-      }
-      onFileDragStart(file, ev);
     }
 
     function onCatDragOver(catId, ev) {
@@ -371,6 +625,7 @@ window.FileScanner = {
         await api('PUT', '/files/batch', { file_ids: ids, category_id: catId || null });
         // Keep user context: switch to target category and show results
         selectedCatId.value = (catId == null ? 'unclassified' : catId);
+        pageOffset.value = 0;
         activeTab.value = 'registered';
         clearSelection();
         await load();
@@ -459,23 +714,23 @@ window.FileScanner = {
       load();
       window.addEventListener('dragend', resetDragState);
       window.addEventListener('drop', resetDragState);
+      window.addEventListener('keydown', onKeydown);
     });
     Vue.onBeforeUnmount(() => {
       window.removeEventListener('dragend', resetDragState);
       window.removeEventListener('drop', resetDragState);
+      window.removeEventListener('keydown', onKeydown);
     });
 
+    function onKeydown(e) {
+      if (!showSearch.value) return;
+      if (e && e.key === 'Escape') {
+        showSearch.value = false;
+      }
+    }
+
     const filteredFiles = Vue.computed(() => {
-      let base;
-      if (selectedCatId.value === null) base = registeredFiles.value;
-      else if (selectedCatId.value === 'unclassified') base = registeredFiles.value.filter(f => !f.category_id);
-      else base = registeredFiles.value.filter(f => String(f.category_id) === String(selectedCatId.value));
-      return [...base].sort((a, b) => {
-        const av = a[sortKey.value] || '';
-        const bv = b[sortKey.value] || '';
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir.value === 'asc' ? cmp : -cmp;
-      });
+      return registeredFiles.value;
     });
 
     const selectedCount = Vue.computed(() => selectedFileIds.value.size);
@@ -489,7 +744,8 @@ window.FileScanner = {
       activeTab, selectedCatId, addingSubCatId, newCatName, newSubCatName,
       renamingCatId, renamingCatName, sortKey, sortDir, zipLoadingCatId, error, projectId, catPanelWidth, isResizing, dragOverCatId,
       isDragging, dragFileIds, dragTargetLabel, toastMessage,
-      allChecked, suggestedCount,
+      totalFiles, filteredTotal, categoryCounts, pageNo, pageCount, canPrev, canNext,
+      suggestedCount,
       // Duplicate detection
       showDuplicateModal, duplicates, pendingFiles, handleDuplicateClose, handleDuplicateConfirm,
       // Batch operations
@@ -502,10 +758,17 @@ window.FileScanner = {
       // Version history
       showVersionModal, versionFileId, versionFileName, openVersionHistory, onRollback,
       // Functions
-      scan, autoCategorize, registerSelected, registerSuggested, toggleSelectAll,
-      updateFileCategory, deleteFile, openFileDir, openCategoryDir, addCategory, addSubCategory,
+      scan, autoCategorize, registerSelected, registerSuggested,
+      updateFileCategory, deleteFile, openFileDir, openFile, openCategoryDir, addCategory, addSubCategory,
       startRename, confirmRename, moveCat, toggleSort, deleteCategory, downloadCategoryZip,
-      onFileDragStart, onRowDragStart, onCatDragOver, onCatDragLeave, onCatDrop
+      selectCategory, prevPage, nextPage,
+      drawerOpen, drawerWidth, drawerFileId, drawerData, drawerLoading, drawerError, drawerNotes, drawerSaving,
+      drawerCategoryId, isDrawerResizing,
+      scanPagedFiles, scanPageNo, scanPageCount, scanCanPrev, scanCanNext, prevScanPage, nextScanPage,
+      toggleSelectAllScanPage, allCheckedScanPage,
+      drawerBreadcrumb,
+      openDetails, closeDetails, saveDrawerNotes, saveDrawerCategory, copyText, getCatPath, formatBytes, formatDT, startDrawerResize,
+      onFileDragStart, onCatDragOver, onCatDragLeave, onCatDrop
     };
   },
   template: `
@@ -543,6 +806,7 @@ window.FileScanner = {
       <div v-if="showSearch" class="search-overlay">
         <SearchPanel
           :projectId="parseInt(projectId)"
+          @close="showSearch = false"
           @open-file="f => $emit('open-file', f)"
         />
         <button class="btn-close-search" @click="showSearch = false">×</button>
@@ -584,21 +848,21 @@ window.FileScanner = {
         </div>
       </div>
 
-      <div class="cabinet-layout" :style="{ display:'grid', gridTemplateColumns: catPanelWidth + 'px 10px 1fr' }">
+      <div class="cabinet-layout" :style="{ display:'grid', gridTemplateColumns: catPanelWidth + 'px 10px 1fr' + (drawerOpen ? ' 10px ' + drawerWidth + 'px' : '') }">
         <!-- Category Tree -->
         <div class="cat-panel card" :style="{ width: '100%' }">
           <div class="panel-title">分类管理</div>
           <div class="cat-tree">
             <!-- All files -->
             <div :class="['cat-node', selectedCatId === null ? 'cat-node-active' : '']"
-              style="padding-left:8px;" @click="selectedCatId = null">
+              style="padding-left:8px;" @click="selectCategory(null)">
               <span class="cat-name">全部文件</span>
-              <span class="cat-count">{{ registeredFiles.length }}</span>
+              <span class="cat-count">{{ totalFiles }}</span>
             </div>
             <!-- Unclassified -->
             <div
               :class="['cat-node', selectedCatId === 'unclassified' ? 'cat-node-active' : '', dragOverCatId === 'unclassified' ? 'cat-node-dropover' : '']"
-              style="padding-left:8px;" @click="selectedCatId = 'unclassified'"
+              style="padding-left:8px;" @click="selectCategory('unclassified')"
               @dragover="onCatDragOver('unclassified', $event)" @dragleave="onCatDragLeave('unclassified')" @drop="onCatDrop(null, $event)">
               <span class="cat-name" style="color:var(--amber);">未分类</span>
               <span class="cat-count" style="color:var(--amber);">{{ unclassifiedCount }}</span>
@@ -608,7 +872,7 @@ window.FileScanner = {
             <template v-for="cat in flatCats" :key="cat.id">
               <div :style="{ paddingLeft: (cat.depth * 16 + 8) + 'px' }"
                 :class="['cat-node', selectedCatId === cat.id ? 'cat-node-active' : '', dragOverCatId === cat.id ? 'cat-node-dropover' : '']"
-                @click="selectedCatId = cat.id"
+                @click="selectCategory(cat.id)"
                 @dragover="onCatDragOver(cat.id, $event)" @dragleave="onCatDragLeave(cat.id)" @drop="onCatDrop(cat.id, $event)">
                 <!-- Rename mode -->
                 <template v-if="renamingCatId === cat.id">
@@ -620,7 +884,7 @@ window.FileScanner = {
                 <!-- Normal mode -->
                 <template v-else>
                   <span class="cat-name">{{ cat.name }}</span>
-                  <span class="cat-count">{{ registeredFiles.filter(f => f.category_id === cat.id).length }}</span>
+                  <span class="cat-count">{{ (categoryCounts && categoryCounts[cat.id]) ? categoryCounts[cat.id] : 0 }}</span>
                   <span class="drop-hint" v-if="isDragging && dragOverCatId === cat.id">松开移动</span>
                   <button class="btn-icon-add" title="上移" @click.stop="moveCat(cat.id, 'up')">↑</button>
                   <button class="btn-icon-add" title="下移" @click.stop="moveCat(cat.id, 'down')">↓</button>
@@ -655,7 +919,7 @@ window.FileScanner = {
         <div class="files-panel" :style="{ width: '100%' }">
           <div class="tabs">
             <button :class="['tab', activeTab === 'registered' ? 'active' : '']" @click="activeTab = 'registered'">
-              已注册文件 ({{ filteredFiles.length }}{{ selectedCatId ? '/' + registeredFiles.length : '' }})
+              已注册文件 ({{ registeredFiles.length }}/{{ filteredTotal }})
             </button>
             <button :class="['tab', activeTab === 'scan' ? 'active' : '']" @click="activeTab = 'scan'">
               扫描结果 ({{ scannedFiles.length }})
@@ -673,6 +937,11 @@ window.FileScanner = {
                   <input type="checkbox" @change="$event.target.checked ? selectAllFiles() : clearSelection()">
                   全选本页
                 </label>
+                <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                  <button class="btn-secondary btn-sm" @click="prevPage" :disabled="!canPrev">上一页</button>
+                  <span style="color:var(--text-muted);">第 {{ pageNo }} / {{ pageCount }} 页</span>
+                  <button class="btn-secondary btn-sm" @click="nextPage" :disabled="!canNext">下一页</button>
+                </div>
               </div>
               <table class="file-table">
                 <thead>
@@ -690,12 +959,12 @@ window.FileScanner = {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="f in filteredFiles" :key="f.id" :class="{ 'selected-row': selectedFileIds.has(f.id) }"
-                    draggable="true" @dragstart="onRowDragStart(f, $event)">
+                  <tr v-for="f in filteredFiles" :key="f.id" :class="{ 'selected-row': selectedFileIds.has(f.id) }">
                     <td><input type="checkbox" :checked="selectedFileIds.has(f.id)" @change="toggleFileSelection(f.id)"></td>
                     <td>
                       <span class="drag-handle" title="拖拽到左侧分类" draggable="true" @dragstart.stop="onFileDragStart(f, $event)">⠿</span>
-                      <span class="file-icon">📄</span> {{ f.file_name }}
+                      <span class="file-icon">📄</span>
+                      <button class="btn-link" style="font-size:13px;" @click.stop="openDetails(f)">{{ f.file_name }}</button>
                     </td>
                     <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="f.file_path">{{ f.file_path }}</td>
                     <td>
@@ -709,8 +978,7 @@ window.FileScanner = {
                     <td class="time-cell">{{ (f.registered_at || f.created_at) ? (f.registered_at || f.created_at).slice(0, 10) : '—' }}</td>
                     <td>
                       <button class="btn-icon" title="打开所在文件夹" @click="openFileDir(f.id)">📁</button>
-                      <button class="btn-icon" title="版本历史" @click="openVersionHistory(f)">📋</button>
-                      <button class="btn-icon-danger" @click="deleteFile(f.id)">✕</button>
+                      <button class="btn-icon" title="详情" @click="openDetails(f)">🛈</button>
                     </td>
                   </tr>
                 </tbody>
@@ -733,15 +1001,26 @@ window.FileScanner = {
                   <button class="btn-primary" @click="registerSelected">注册选中文件</button>
                 </div>
               </div>
+              <div class="table-toolbar">
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="allCheckedScanPage" @change="toggleSelectAllScanPage($event.target.checked)">
+                  全选本页
+                </label>
+                <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                  <button class="btn-secondary btn-sm" @click="prevScanPage" :disabled="!scanCanPrev">上一页</button>
+                  <span style="color:var(--text-muted);">第 {{ scanPageNo }} / {{ scanPageCount }} 页</span>
+                  <button class="btn-secondary btn-sm" @click="nextScanPage" :disabled="!scanCanNext">下一页</button>
+                </div>
+              </div>
               <table class="file-table">
                 <thead>
                   <tr>
-                    <th><input type="checkbox" :checked="allChecked" @change="toggleSelectAll($event.target.checked)"></th>
+                    <th></th>
                     <th>文件名</th><th>路径</th><th>建议分类</th><th>指定分类</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="f in scannedFiles" :key="f.file_path">
+                  <tr v-for="f in scanPagedFiles" :key="f.file_path">
                     <td><input type="checkbox" v-model="selected[f.file_path].checked"></td>
                     <td>{{ f.file_name }}</td>
                     <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="f.file_path">{{ f.file_path }}</td>
@@ -757,6 +1036,70 @@ window.FileScanner = {
               </table>
             </div>
           </div>
+        </div>
+
+        <div v-if="drawerOpen" class="panel-resizer" :class="{ 'resizing': isDrawerResizing }" @mousedown="startDrawerResize"
+             style="cursor: col-resize; background: var(--border);"></div>
+
+        <!-- Details Drawer -->
+        <div v-if="drawerOpen" class="details-drawer card" :style="{ width: drawerWidth + 'px' }">
+          <div class="details-header">
+            <div class="details-title">文件详情</div>
+            <button class="btn-icon" title="关闭" @click="closeDetails">×</button>
+          </div>
+          <div v-if="drawerData" class="details-subhead">
+            <button class="btn-link" @click="copyText(drawerBreadcrumb)">{{ drawerBreadcrumb }}</button>
+            <div class="details-badges">
+              <span :class="['badge-pill', drawerData.indexed ? 'ok' : 'muted']">{{ drawerData.indexed ? '已索引' : '未索引' }}</span>
+              <span class="badge-pill">版本 {{ drawerData.version_count || 0 }}</span>
+            </div>
+          </div>
+          <div v-if="drawerLoading" class="empty">加载中...</div>
+          <div v-else-if="drawerError" class="error">{{ drawerError }}</div>
+          <div v-else-if="drawerData" class="details-body">
+            <div class="detail-row"><div class="detail-label">文件名</div><div class="detail-value">{{ drawerData.file_name }}</div></div>
+            <div class="detail-row"><div class="detail-label">路径</div><div class="detail-value path">{{ drawerData.file_path }}</div></div>
+            <div class="detail-row">
+              <div class="detail-label">分类</div>
+              <div class="detail-value">
+                <select class="input input-sm" v-model="drawerCategoryId" @change="saveDrawerCategory" :disabled="drawerSaving" style="width:100%;">
+                  <option value="">— 未分类 —</option>
+                  <option v-for="c in flatCats" :key="c.id" :value="c.id">
+                    {{ '　'.repeat(c.depth) + c.name }}
+                  </option>
+                </select>
+                <div v-if="drawerData.category_id" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+                  <button class="btn-secondary btn-sm" @click="openCategoryDir(drawerData.category_id)">打开分类文件夹</button>
+                  <button class="btn-secondary btn-sm" @click="copyText(getCatPath(drawerData.category_id))">复制分类路径</button>
+                </div>
+              </div>
+            </div>
+            <div class="detail-row"><div class="detail-label">入库</div><div class="detail-value">{{ formatDT(drawerData.registered_at) }}</div></div>
+            <div class="detail-row"><div class="detail-label">修改</div><div class="detail-value">{{ formatDT(drawerData.last_modified) }}</div></div>
+            <div class="detail-row"><div class="detail-label">大小</div><div class="detail-value">{{ formatBytes(drawerData.file_size) }}</div></div>
+            <div class="detail-row"><div class="detail-label">索引</div><div class="detail-value">{{ drawerData.indexed ? '已索引' : '未索引' }}</div></div>
+            <div class="detail-row"><div class="detail-label">版本</div><div class="detail-value">{{ drawerData.version_count || 0 }}</div></div>
+
+            <div style="margin-top:10px;">
+              <div class="detail-label" style="margin-bottom:6px;">备注</div>
+              <textarea class="input" style="width:100%;min-height:120px;resize:vertical;"
+                v-model="drawerNotes" @blur="saveDrawerNotes" :disabled="drawerSaving"></textarea>
+              <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+                <button class="btn-secondary btn-sm" @click="saveDrawerNotes" :disabled="drawerSaving">{{ drawerSaving ? '保存中…' : '保存备注' }}</button>
+                <button class="btn-secondary btn-sm" @click="copyText(drawerData.file_path)">复制相对路径</button>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+              <button class="btn-secondary btn-sm" @click="openFile(drawerData.id)">打开文件</button>
+              <button class="btn-secondary btn-sm" @click="openFileDir(drawerData.id)">打开所在文件夹</button>
+              <button class="btn-secondary btn-sm" @click="openVersionHistory(drawerData)">版本历史</button>
+              <button class="btn-secondary btn-sm" @click="copyText(drawerData.file_path)">复制相对路径</button>
+              <button class="btn-secondary btn-sm" @click="copyText(drawerData.file_name)">复制文件名</button>
+              <button class="btn-danger btn-sm" @click="closeDetails(); deleteFile(drawerData.id)">删除</button>
+            </div>
+          </div>
+          <div v-else class="empty">请选择一个文件查看详情</div>
         </div>
       </div>
     </div>

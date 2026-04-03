@@ -260,6 +260,9 @@ def migrate_db():
 
         CREATE INDEX IF NOT EXISTS idx_files_hash ON files(content_hash);
         CREATE INDEX IF NOT EXISTS idx_files_size ON files(file_size);
+        CREATE INDEX IF NOT EXISTS idx_files_project_registered ON files(project_id, registered_at);
+        CREATE INDEX IF NOT EXISTS idx_files_project_category ON files(project_id, category_id);
+        CREATE INDEX IF NOT EXISTS idx_categories_project_parent ON categories(project_id, parent_id);
         CREATE INDEX IF NOT EXISTS idx_file_versions_file ON file_versions(file_id);
     """)
 
