@@ -37,6 +37,9 @@ def init_db():
             category_id INTEGER,
             file_name TEXT NOT NULL,
             file_path TEXT NOT NULL,
+            file_size INTEGER DEFAULT 0,
+            content_hash TEXT,
+            last_modified DATETIME,
             notes TEXT,
             keyword_suggested INTEGER DEFAULT 0,
             registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -109,6 +112,146 @@ def init_db():
             registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (founder_id) REFERENCES founders(id)
         );
+
+        -- Version history for files
+        CREATE TABLE IF NOT EXISTS file_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL,
+            version_no INTEGER NOT NULL,
+            file_path TEXT NOT NULL,
+            content_hash TEXT,
+            file_size INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+        );
+
+        -- Full-text search content storage
+        CREATE TABLE IF NOT EXISTS file_content (
+            file_id INTEGER PRIMARY KEY,
+            content TEXT,
+            extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+        );
+
+        -- FTS5 virtual table for full-text search (if supported)
+        CREATE VIRTUAL TABLE IF NOT EXISTS file_content_fts USING fts5(
+            content,
+            content='file_content',
+            content_rowid='file_id'
+        );
+
+        -- LDD Checklist Templates
+        CREATE TABLE IF NOT EXISTS ldd_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            round_type TEXT DEFAULT 'custom',
+            description TEXT,
+            is_builtin INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS ldd_template_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            section_no TEXT NOT NULL,
+            item_no TEXT NOT NULL,
+            title TEXT NOT NULL,
+            title_en TEXT,
+            description TEXT,
+            item_type TEXT DEFAULT 'file',
+            risk_level TEXT DEFAULT 'medium',
+            is_required INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            FOREIGN KEY (template_id) REFERENCES ldd_templates(id) ON DELETE CASCADE
+        );
     """)
+    conn.commit()
+    conn.close()
+    # Run migrations for existing databases
+    migrate_db()
+
+    # Seed default templates
+    try:
+        from .seed import seed_default_templates
+        seed_default_templates(get_db())
+    except Exception:
+        pass  # Ignore seed errors
+
+def migrate_db():
+    """Migrate existing database to latest schema."""
+    conn = get_db()
+    c = conn.cursor()
+
+    # Migration: Add new columns to files table
+    try:
+        c.execute("ALTER TABLE files ADD COLUMN file_size INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    try:
+        c.execute("ALTER TABLE files ADD COLUMN content_hash TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        c.execute("ALTER TABLE files ADD COLUMN last_modified DATETIME")
+    except sqlite3.OperationalError:
+        pass
+
+    # Migration: Create new tables if not exist (for existing DBs)
+    c.executescript("""
+        CREATE TABLE IF NOT EXISTS file_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL,
+            version_no INTEGER NOT NULL,
+            file_path TEXT NOT NULL,
+            content_hash TEXT,
+            file_size INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS file_content (
+            file_id INTEGER PRIMARY KEY,
+            content TEXT,
+            extracted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS file_content_fts USING fts5(
+            content,
+            content='file_content',
+            content_rowid='file_id'
+        );
+
+        CREATE TABLE IF NOT EXISTS ldd_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            round_type TEXT DEFAULT 'custom',
+            description TEXT,
+            is_builtin INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS ldd_template_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            section_no TEXT NOT NULL,
+            item_no TEXT NOT NULL,
+            title TEXT NOT NULL,
+            title_en TEXT,
+            description TEXT,
+            item_type TEXT DEFAULT 'file',
+            risk_level TEXT DEFAULT 'medium',
+            is_required INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            FOREIGN KEY (template_id) REFERENCES ldd_templates(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_files_hash ON files(content_hash);
+        CREATE INDEX IF NOT EXISTS idx_files_size ON files(file_size);
+        CREATE INDEX IF NOT EXISTS idx_file_versions_file ON file_versions(file_id);
+    """)
+
     conn.commit()
     conn.close()

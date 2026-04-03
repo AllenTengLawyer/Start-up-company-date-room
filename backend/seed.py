@@ -75,3 +75,75 @@ def _seed_ldd_items(db, project_id: int):
                 )
             )
             order += 1
+
+def seed_default_templates(db):
+    """Seed default LDD templates for different funding rounds."""
+    import os
+
+    # Check if already seeded
+    count = db.execute("SELECT COUNT(*) as n FROM ldd_templates WHERE is_builtin = 1").fetchone()["n"]
+    if count > 0:
+        return
+
+    # Load LDD checklist data
+    with open(os.path.join(TEMPLATES_DIR, "cn_ldd_checklist.json"), encoding="utf-8") as f:
+        sections = json.load(f)
+
+    def build_items(sections_list):
+        items = []
+        order = 0
+        for section in sections_list:
+            for item in section["items"]:
+                items.append({
+                    "section_no": section["section_no"],
+                    "item_no": item["item_no"],
+                    "title": item["title"],
+                    "title_en": item.get("title_en", ""),
+                    "description": item.get("description", ""),
+                    "item_type": item.get("item_type", "file"),
+                    "risk_level": item.get("risk_level", "medium"),
+                    "is_required": item.get("is_required", 1),
+                    "sort_order": order
+                })
+                order += 1
+        return items
+
+    all_items = build_items(sections)
+
+    # Angel Round: Focus on basic company docs, IP, founders
+    angel_sections = {"1": True, "6": True, "8": True, "12": True}  # Company, IP, Employment, ESG
+    angel_items = [i for i in all_items if i["section_no"][0] in angel_sections]
+
+    # Series A: More comprehensive
+    series_a_sections = {"1": True, "2": True, "4": True, "6": True, "7": True, "8": True, "12": True}
+    series_a_items = [i for i in all_items if i["section_no"][0] in series_a_sections]
+
+    # Series B: Full checklist
+    series_b_items = all_items
+
+    templates = [
+        ("天使轮尽调清单", "angel", "早期项目基础尽调，重点关注公司架构、知识产权和团队", angel_items),
+        ("A轮尽调清单", "series_a", "A轮融资标准尽调，增加业务和财务审查", series_a_items),
+        ("B轮尽调清单", "series_b", "B轮融资全面尽调，覆盖所有方面", series_b_items),
+    ]
+
+    for name, round_type, desc, items in templates:
+        cur = db.execute(
+            """INSERT INTO ldd_templates (name, round_type, description, is_builtin)
+               VALUES (?, ?, ?, 1)""",
+            (name, round_type, desc)
+        )
+        template_id = cur.lastrowid
+
+        for item in items:
+            db.execute(
+                """INSERT INTO ldd_template_items
+                   (template_id, section_no, item_no, title, title_en, description,
+                    item_type, risk_level, is_required, sort_order)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (template_id, item["section_no"], item["item_no"], item["title"],
+                 item["title_en"], item["description"], item["item_type"],
+                 item["risk_level"], item["is_required"], item["sort_order"])
+            )
+
+    db.commit()

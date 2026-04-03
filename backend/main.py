@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import os
 
 from .database import init_db
-from .routers import projects, founders, categories, files, ldd, export
+from .routers import projects, founders, categories, files, ldd, export, versions, templates
 
 app = FastAPI(title="创业助手 · 公司文件整理系统")
 
@@ -18,6 +18,8 @@ app.include_router(categories.router, prefix="/api")
 app.include_router(files.router, prefix="/api")
 app.include_router(ldd.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
+app.include_router(versions.router, prefix="/api")
+app.include_router(templates.router, prefix="/api")
 
 @app.get("/api/health")
 def health():

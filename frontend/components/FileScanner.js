@@ -1,4 +1,10 @@
 window.FileScanner = {
+  components: {
+    DuplicateWarningModal,
+    BatchRenameModal,
+    SearchPanel,
+    VersionHistoryModal
+  },
   setup() {
     const { t } = VueI18n.useI18n();
     const route = VueRouter.useRoute();
@@ -19,6 +25,24 @@ window.FileScanner = {
     const sortDir = Vue.ref('desc');
     const zipLoadingCatId = Vue.ref(null);
     const error = Vue.ref('');
+
+    // Duplicate detection
+    const showDuplicateModal = Vue.ref(false);
+    const duplicates = Vue.ref([]);
+    const pendingFiles = Vue.ref([]);
+
+    // Batch operations
+    const selectedFileIds = Vue.ref(new Set());
+    const showBatchBar = Vue.ref(false);
+    const showBatchRenameModal = Vue.ref(false);
+
+    // Search panel
+    const showSearch = Vue.ref(false);
+
+    // Version history
+    const showVersionModal = Vue.ref(false);
+    const versionFileId = Vue.ref(null);
+    const versionFileName = Vue.ref('');
 
     function flattenCats(nodes, depth = 0) {
       const result = [];
@@ -52,9 +76,31 @@ window.FileScanner = {
         res.files.forEach(f => {
           selected.value[f.file_path] = { checked: true, category_id: f.suggested_category_id };
         });
-        activeTab.value = 'scan';
+
+        // Check for duplicates
+        if (res.duplicates && res.duplicates.length > 0) {
+          duplicates.value = res.duplicates;
+          pendingFiles.value = res.files;
+          showDuplicateModal.value = true;
+        } else {
+          activeTab.value = 'scan';
+        }
       } catch(e) { error.value = e.message; }
       finally { scanning.value = false; }
+    }
+
+    function handleDuplicateConfirm(filesToRegister) {
+      showDuplicateModal.value = false;
+      // Update scannedFiles to only include non-skipped files
+      const keepPaths = new Set(filesToRegister.map(f => f.file_path));
+      scannedFiles.value = pendingFiles.value.filter(f => keepPaths.has(f.file_path));
+      selected.value = {};
+      scannedFiles.value.forEach(f => {
+        selected.value[f.file_path] = { checked: true, category_id: f.suggested_category_id };
+      });
+      pendingFiles.value = [];
+      duplicates.value = [];
+      activeTab.value = 'scan';
     }
 
     function toggleSelectAll(val) {
@@ -177,6 +223,81 @@ window.FileScanner = {
       finally { zipLoadingCatId.value = null; }
     }
 
+    // Batch operations
+    function toggleFileSelection(fileId) {
+      if (selectedFileIds.value.has(fileId)) {
+        selectedFileIds.value.delete(fileId);
+      } else {
+        selectedFileIds.value.add(fileId);
+      }
+      showBatchBar.value = selectedFileIds.value.size > 0;
+    }
+
+    function selectAllFiles() {
+      filteredFiles.value.forEach(f => selectedFileIds.value.add(f.id));
+      showBatchBar.value = true;
+    }
+
+    function clearSelection() {
+      selectedFileIds.value.clear();
+      showBatchBar.value = false;
+    }
+
+    async function batchMoveToCategory(catId) {
+      const ids = Array.from(selectedFileIds.value);
+      if (!ids.length) return;
+      try {
+        await api('PUT', '/files/batch', { file_ids: ids, category_id: catId });
+        clearSelection();
+        await load();
+      } catch(e) { error.value = e.message; }
+    }
+
+    async function batchDelete() {
+      const ids = Array.from(selectedFileIds.value);
+      if (!ids.length) return;
+      if (!confirm(`确定要删除选中的 ${ids.length} 个文件吗？`)) return;
+      try {
+        await api('POST', '/files/batch-delete', { file_ids: ids });
+        clearSelection();
+        await load();
+      } catch(e) { error.value = e.message; }
+    }
+
+    function openBatchRename() {
+      if (selectedFileIds.value.size === 0) return;
+      showBatchRenameModal.value = true;
+    }
+
+    async function handleBatchRename(options) {
+      showBatchRenameModal.value = false;
+      const ids = Array.from(selectedFileIds.value);
+      if (!ids.length) return;
+      try {
+        await api('POST', `/files/batch-rename?project_id=${projectId.value}`, {
+          file_ids: ids,
+          pattern: options.pattern,
+          prefix: options.prefix,
+          suffix: options.suffix,
+          start_number: options.startNumber
+        });
+        clearSelection();
+        await load();
+      } catch(e) { error.value = e.message; }
+    }
+
+    // Version history
+    function openVersionHistory(file) {
+      versionFileId.value = file.id;
+      versionFileName.value = file.file_name;
+      showVersionModal.value = true;
+    }
+
+    function onRollback() {
+      showVersionModal.value = false;
+      load();
+    }
+
     Vue.onMounted(load);
 
     const filteredFiles = Vue.computed(() => {
@@ -192,24 +313,101 @@ window.FileScanner = {
       });
     });
 
-    return { t, categories, flatCats, registeredFiles, filteredFiles, unclassifiedCount,
-             scannedFiles, selected, scanning,
-             activeTab, selectedCatId, addingSubCatId, newCatName, newSubCatName,
-             renamingCatId, renamingCatName, sortKey, sortDir, zipLoadingCatId, error, projectId,
-             allChecked, suggestedCount,
-             scan, registerSelected, registerSuggested, toggleSelectAll,
-             updateFileCategory, deleteFile, addCategory, addSubCategory,
-             startRename, confirmRename, moveCat, toggleSort, deleteCategory, downloadCategoryZip };
+    const selectedCount = Vue.computed(() => selectedFileIds.value.size);
+    const selectedFilesForRename = Vue.computed(() =>
+      registeredFiles.value.filter(f => selectedFileIds.value.has(f.id))
+    );
+
+    return {
+      t, categories, flatCats, registeredFiles, filteredFiles, unclassifiedCount,
+      scannedFiles, selected, scanning,
+      activeTab, selectedCatId, addingSubCatId, newCatName, newSubCatName,
+      renamingCatId, renamingCatName, sortKey, sortDir, zipLoadingCatId, error, projectId,
+      allChecked, suggestedCount,
+      // Duplicate detection
+      showDuplicateModal, duplicates, pendingFiles, handleDuplicateConfirm,
+      // Batch operations
+      selectedFileIds, showBatchBar, showBatchRenameModal, selectedCount,
+      toggleFileSelection, selectAllFiles, clearSelection,
+      batchMoveToCategory, batchDelete, openBatchRename, handleBatchRename,
+      selectedFilesForRename,
+      // Search
+      showSearch,
+      // Version history
+      showVersionModal, versionFileId, versionFileName, openVersionHistory, onRollback,
+      // Functions
+      scan, registerSelected, registerSuggested, toggleSelectAll,
+      updateFileCategory, deleteFile, addCategory, addSubCategory,
+      startRename, confirmRename, moveCat, toggleSort, deleteCategory, downloadCategoryZip
+    };
   },
   template: `
     <div class="page">
+      <!-- Duplicate Warning Modal -->
+      <DuplicateWarningModal
+        v-if="showDuplicateModal"
+        :duplicates="duplicates"
+        :allFiles="pendingFiles"
+        @close="showDuplicateModal = false"
+        @confirm="handleDuplicateConfirm"
+      />
+
+      <!-- Batch Rename Modal -->
+      <BatchRenameModal
+        v-if="showBatchRenameModal"
+        :fileCount="selectedCount"
+        :sampleFiles="selectedFilesForRename"
+        :projectId="parseInt(projectId)"
+        @close="showBatchRenameModal = false"
+        @confirm="handleBatchRename"
+      />
+
+      <!-- Version History Modal -->
+      <VersionHistoryModal
+        v-if="showVersionModal"
+        :fileId="versionFileId"
+        :fileName="versionFileName"
+        @close="showVersionModal = false"
+        @rollback="onRollback"
+      />
+
+      <!-- Search Panel -->
+      <div v-if="showSearch" class="search-overlay">
+        <SearchPanel
+          :projectId="parseInt(projectId)"
+          @open-file="f => $emit('open-file', f)"
+        />
+        <button class="btn-close-search" @click="showSearch = false">×</button>
+      </div>
+
       <div class="page-header">
         <h2>{{ t('nav_cabinet') }}</h2>
-        <button class="btn-primary" @click="scan" :disabled="scanning">
-          {{ scanning ? '扫描中...' : t('btn_scan') }}
-        </button>
+        <div class="header-actions">
+          <button class="btn-secondary" @click="showSearch = true">
+            🔍 搜索
+          </button>
+          <button class="btn-primary" @click="scan" :disabled="scanning">
+            {{ scanning ? '扫描中...' : t('btn_scan') }}
+          </button>
+        </div>
       </div>
       <div class="error" v-if="error">{{ error }}</div>
+
+      <!-- Batch Operations Bar -->
+      <div v-if="showBatchBar" class="batch-bar">
+        <span class="batch-count">已选择 {{ selectedCount }} 个文件</span>
+        <div class="batch-actions">
+          <select @change="batchMoveToCategory($event.target.value); $event.target.value = ''" class="input input-sm">
+            <option value="">移动到分类...</option>
+            <option v-for="c in flatCats" :key="c.id" :value="c.id">
+              {{ '　'.repeat(c.depth) + c.name }}
+            </option>
+          </select>
+          <button class="btn-secondary" @click="openBatchRename">批量重命名</button>
+          <button class="btn-danger" @click="batchDelete">批量删除</button>
+          <button class="btn-text" @click="clearSelection">取消</button>
+        </div>
+      </div>
 
       <div class="cabinet-layout">
         <!-- Category Tree -->
@@ -287,35 +485,48 @@ window.FileScanner = {
             <div class="empty" v-if="filteredFiles.length === 0">
               {{ selectedCatId === 'unclassified' ? '暂无未分类文件' : selectedCatId ? '该分类下暂无文件' : '暂无文件，点击"扫描目录"发现文件' }}
             </div>
-            <table class="file-table" v-else>
-              <thead>
-                <tr>
-                  <th class="sortable-th" @click="toggleSort('file_name')">
-                    文件名 <span class="sort-icon">{{ sortKey === 'file_name' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-                  </th>
-                  <th>分类</th>
-                  <th class="sortable-th" @click="toggleSort('created_at')">
-                    入库时间 <span class="sort-icon">{{ sortKey === 'created_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
-                  </th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="f in filteredFiles" :key="f.id">
-                  <td><span class="file-icon">📄</span> {{ f.file_name }}</td>
-                  <td>
-                    <select :value="f.category_id" @change="updateFileCategory(f.id, $event.target.value)" class="input input-sm">
-                      <option value="">— 未分类 —</option>
-                      <option v-for="c in flatCats" :key="c.id" :value="c.id">
-                        {{ '　'.repeat(c.depth) + c.name }}
-                      </option>
-                    </select>
-                  </td>
-                  <td class="time-cell">{{ f.created_at ? f.created_at.slice(0, 10) : '—' }}</td>
-                  <td><button class="btn-icon-danger" @click="deleteFile(f.id)">✕</button></td>
-                </tr>
-              </tbody>
-            </table>
+            <div v-else>
+              <div class="table-toolbar">
+                <label class="checkbox-label">
+                  <input type="checkbox" @change="$event.target.checked ? selectAllFiles() : clearSelection()">
+                  全选本页
+                </label>
+              </div>
+              <table class="file-table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px;"><input type="checkbox" @change="$event.target.checked ? selectAllFiles() : clearSelection()"></th>
+                    <th class="sortable-th" @click="toggleSort('file_name')">
+                      文件名 <span class="sort-icon">{{ sortKey === 'file_name' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+                    </th>
+                    <th>分类</th>
+                    <th class="sortable-th" @click="toggleSort('created_at')">
+                      入库时间 <span class="sort-icon">{{ sortKey === 'created_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
+                    </th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="f in filteredFiles" :key="f.id" :class="{ 'selected-row': selectedFileIds.has(f.id) }">
+                    <td><input type="checkbox" :checked="selectedFileIds.has(f.id)" @change="toggleFileSelection(f.id)"></td>
+                    <td><span class="file-icon">📄</span> {{ f.file_name }}</td>
+                    <td>
+                      <select :value="f.category_id" @change="updateFileCategory(f.id, $event.target.value)" class="input input-sm">
+                        <option value="">— 未分类 —</option>
+                        <option v-for="c in flatCats" :key="c.id" :value="c.id">
+                          {{ '　'.repeat(c.depth) + c.name }}
+                        </option>
+                      </select>
+                    </td>
+                    <td class="time-cell">{{ f.created_at ? f.created_at.slice(0, 10) : '—' }}</td>
+                    <td>
+                      <button class="btn-icon" title="版本历史" @click="openVersionHistory(f)">📋</button>
+                      <button class="btn-icon-danger" @click="deleteFile(f.id)">✕</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- Scan results -->
