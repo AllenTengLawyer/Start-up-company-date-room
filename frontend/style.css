@@ -701,6 +701,8 @@ nav a.router-link-active::before { background: var(--accent); }
   font-size: 10px; font-weight: 700; color: var(--text-muted);
   margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em;
 }
+.cat-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cat-panel-header .panel-title { margin-bottom: 0; }
 
 .cat-tree { margin-bottom: 10px; flex: 1 1 auto; overflow-y: auto; min-height: 0; max-height: none; }
 
@@ -1192,6 +1194,13 @@ nav a.router-link-active::before { background: var(--accent); }
 .table-toolbar__right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .toolbar-muted { color: var(--text-muted); }
 .toolbar-hint { color: var(--text-muted); font-size: 12px; }
+.list-footer {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
 
 /* ── Search Panel ─────────────────────────────────────────────────────────── */
 .search-overlay {
@@ -1477,3 +1486,94 @@ nav a.router-link-active::before { background: var(--accent); }
 
 .badge.type-file { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
 .badge.type-info { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+
+/* ── Founder upload drop zone ─────────────────────────────────────────────── */
+.upload-drop-zone {
+  margin-top: 8px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: border-color 0.15s, background 0.15s;
+  cursor: default;
+}
+.upload-drop-zone.drag-active {
+  border-color: var(--primary);
+  background: rgba(56, 189, 248, 0.06);
+  color: var(--primary);
+}
+.upload-link {
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.file-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.file-entry {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-secondary);
+  background: var(--bg-elevated); border-radius: 6px; padding: 4px 8px;
+}
+.btn-icon-danger {
+  margin-left: auto; background: none; border: none;
+  color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 0 2px;
+}
+.btn-icon-danger:hover { color: #ef4444; }
+.statement-input { width: 100%; resize: vertical; margin-top: 6px; }
+
+/* ── Founder upload drop zone ─────────────────────────────────────────────── */
+.upload-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: default;
+  transition: border-color 0.15s, background 0.15s;
+  margin-top: 8px;
+}
+.upload-drop-zone.drag-active {
+  border-color: var(--primary);
+  background: rgba(56, 189, 248, 0.06);
+  color: var(--primary);
+}
+.upload-link {
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.file-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.file-entry {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-elevated); border-radius: 4px; padding: 3px 8px;
+}
+.btn-icon-danger {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 11px; padding: 0 2px; margin-left: auto;
+}
+.btn-icon-danger:hover { color: #e53e3e; }
+.dim-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.dim-tab {
+  padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-elevated); color: var(--text-secondary);
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.dim-tab.active, .dim-tab:hover {
+  background: var(--primary); color: #fff; border-color: var(--primary);
+}
+.checklist-items { display: flex; flex-direction: column; gap: 12px; }
+.checklist-item { padding: 14px 16px; }
+.item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.item-code { font-size: 11px; font-weight: 600; color: var(--text-muted); min-width: 28px; }
+.item-type-badge { font-size: 14px; }
+.item-title { font-size: 13px; color: var(--text-primary); margin-bottom: 8px; }
+.item-body { display: flex; flex-direction: column; gap: 6px; }
+.statement-input { font-size: 12px; resize: vertical; }
+.status-select { margin-left: auto; font-size: 12px; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); }
+.status-select.status-provided { border-color: #38a169; color: #38a169; }
+.status-select.status-partial  { border-color: #d69e2e; color: #d69e2e; }
+.status-select.status-pending  { border-color: #e53e3e; color: #e53e3e; }
+.status-select.status-na       { border-color: var(--text-muted); color: var(--text-muted); }

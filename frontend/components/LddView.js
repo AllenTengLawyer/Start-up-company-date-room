@@ -59,12 +59,22 @@ window.LddView = {
       return allFiles.value.filter(f => ids.has(f.category_id));
     });
 
-    const SECTION_TITLES = {
+    const SECTION_TITLES_CN = {
       '1': '集团公司基本文件', '2': '业务与重大合同', '3': '借款和担保',
       '4': '财务和会计', '5': '动产和不动产', '6': '知识产权',
       '7': '税务及财政补贴', '8': '雇员和不竞争', '9': '保险',
       '10': '诉讼、执行及行政处罚', '11': '网络安全、数据合规', '12': 'ESG', '13': '其他'
     };
+    const SECTION_TITLES_US = {
+      '1': 'Corporate Formation', '2': 'Corporate Governance', '3': 'Capitalization & Financing',
+      '4': 'Contracts & Agreements', '5': 'Intellectual Property', '6': 'Human Resources',
+      '7': 'Financial Records', '8': 'Legal & Compliance', '9': 'Business Operations',
+      '10': 'Tax Records', '11': 'Insurance', '12': 'Real Estate & Assets'
+    };
+    const companyType = Vue.ref('cn');
+    const SECTION_TITLES = Vue.computed(() =>
+      companyType.value === 'us' ? SECTION_TITLES_US : SECTION_TITLES_CN
+    );
 
     async function load() {
       error.value = '';
@@ -72,6 +82,8 @@ window.LddView = {
         try {
           await api('POST', `/projects/${projectId.value}/ensure-seeded`);
         } catch (e) { error.value = e.message || String(e); }
+        const projInfo = await api('GET', `/projects/${projectId.value}`);
+        companyType.value = projInfo.company_type || 'cn';
         const [lddData, scoreData, filesData, todoData, summaryData, catsData] = await Promise.all([
           api('GET', `/projects/${projectId.value}/ldd`),
           api('GET', `/projects/${projectId.value}/ldd/score`),
@@ -289,7 +301,7 @@ window.LddView = {
         <div class="ldd-section" v-for="sec in sections" :key="sec.section_no">
           <div class="section-header" @click="toggleSection(sec.section_no)">
             <span class="section-no">§{{ sec.section_no }}</span>
-            <span class="section-title">{{ SECTION_TITLES[sec.section_no] || sec.section_no }}</span>
+            <span class="section-title">{{ sec.section_title || SECTION_TITLES[sec.section_no] || sec.section_no }}</span>
             <span class="section-count">{{ sec.items.filter(i => i.status === 'provided').length }}/{{ sec.items.length }}</span>
             <span class="chevron">{{ openSections[sec.section_no] ? '▲' : '▼' }}</span>
           </div>

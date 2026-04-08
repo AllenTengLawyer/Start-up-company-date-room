@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ import re
 import shutil
 import json
 import zipfile
+from urllib.parse import quote
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ def get_report_data(project_id: int):
         """, (project_id,)).fetchall()
     }
     mappings_raw = db.execute("""
-        SELECT lm.ldd_item_id, f.file_name
+        SELECT lm.ldd_item_id, f.file_name, COALESCE(lm.notes, '') AS notes
         FROM ldd_mappings lm
         JOIN files f ON lm.file_id = f.id
         JOIN ldd_items li ON lm.ldd_item_id = li.id
@@ -47,7 +48,10 @@ def get_report_data(project_id: int):
     """, (project_id,)).fetchall()
     mappings_by_item = {}
     for m in mappings_raw:
-        mappings_by_item.setdefault(m["ldd_item_id"], []).append(m["file_name"])
+        mappings_by_item.setdefault(m["ldd_item_id"], []).append({
+            "file_name": m["file_name"],
+            "notes": m["notes"] or ""
+        })
 
     score_data = db.execute("""
         SELECT ls.status, COUNT(*) as n
@@ -88,30 +92,258 @@ def get_report_data(project_id: int):
     }
 
 @router.get("/projects/{project_id}/export/html")
-def export_html(project_id: int):
+def export_html(project_id: int, lang: str = Query("zh")):
     data = get_report_data(project_id)
+    lang = "en" if str(lang).lower().startswith("en") else "zh"
+    labels = {
+        "zh": {
+            "html_lang": "zh",
+            "title": "DD就绪报告",
+            "h1": "法律尽职调查就绪报告",
+            "meta_company": "公司",
+            "meta_generated_at": "生成时间",
+            "meta_internal": "仅供内部使用",
+            "score_label": "DD 就绪度评分",
+            "stat_provided": "已提供",
+            "stat_partial": "部分提供",
+            "stat_pending": "未提供",
+            "stat_na": "不适用",
+            "th_no": "编号",
+            "th_item": "事项",
+            "th_risk": "风险",
+            "th_status": "状态",
+            "th_files": "已提供文件",
+            "th_notes": "说明",
+            "risk_high": "高",
+            "risk_medium": "中",
+            "risk_low": "低",
+            "status_provided": "✓ 已提供",
+            "status_partial": "△ 部分提供",
+            "status_pending": "✗ 未提供",
+            "status_na": "— 不适用",
+            "item_statement": "条目说明",
+        },
+        "en": {
+            "html_lang": "en",
+            "title": "DD Readiness Report",
+            "h1": "Due Diligence Readiness Report",
+            "meta_company": "Company",
+            "meta_generated_at": "Generated at",
+            "meta_internal": "Internal use only",
+            "score_label": "DD Readiness Score",
+            "stat_provided": "Provided",
+            "stat_partial": "Partial",
+            "stat_pending": "Pending",
+            "stat_na": "N/A",
+            "th_no": "No",
+            "th_item": "Item",
+            "th_risk": "Risk",
+            "th_status": "Status",
+            "th_files": "Files",
+            "th_notes": "Notes",
+            "risk_high": "High",
+            "risk_medium": "Medium",
+            "risk_low": "Low",
+            "status_provided": "✓ Provided",
+            "status_partial": "△ Partial",
+            "status_pending": "✗ Pending",
+            "status_na": "— N/A",
+            "item_statement": "Item note",
+        },
+    }[lang]
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
     tmpl = env.get_template("report_template.html")
-    html = tmpl.render(**data)
+    html = tmpl.render(**data, lang=lang, labels=labels)
     return HTMLResponse(content=html)
 
-@router.get("/projects/{project_id}/export/pdf")
-def export_pdf(project_id: int):
+@router.get("/projects/{project_id}/export/docx")
+def export_docx(project_id: int, lang: str = Query("zh")):
     data = get_report_data(project_id)
-    env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
-    tmpl = env.get_template("report_template.html")
-    html = tmpl.render(**data)
-
+    lang = "en" if str(lang).lower().startswith("en") else "zh"
     try:
-        import weasyprint
-        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+        from docx import Document
+        from docx.shared import Pt, Inches
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        doc = Document()
+
+        def set_east_asia(oxml_element, font_name: str):
+            rPr = oxml_element.find(qn("w:rPr"))
+            if rPr is None:
+                rPr = OxmlElement("w:rPr")
+                oxml_element.insert(0, rPr)
+            rFonts = rPr.find(qn("w:rFonts"))
+            if rFonts is None:
+                rFonts = OxmlElement("w:rFonts")
+                rPr.append(rFonts)
+            rFonts.set(qn("w:eastAsia"), font_name)
+
+        normal = doc.styles["Normal"]
+        normal.font.name = "Microsoft YaHei"
+        normal.font.size = Pt(10.5)
+        set_east_asia(normal._element, "Microsoft YaHei")
+
+        labels = {
+            "zh": {
+                "title": "法律尽职调查就绪报告",
+                "generated_at": "生成时间",
+                "section": "§",
+                "th_no": "编号",
+                "th_item": "事项",
+                "th_risk": "风险",
+                "th_status": "状态",
+                "th_files": "已提供文件",
+                "th_notes": "说明",
+                "risk_high": "高",
+                "risk_medium": "中",
+                "risk_low": "低",
+                "status_provided": "✓ 已提供",
+                "status_partial": "△ 部分提供",
+                "status_pending": "✗ 未提供",
+                "status_na": "— 不适用",
+                "item_statement": "条目说明",
+                "metric": "指标",
+                "value": "数值",
+                "score": "就绪度评分",
+                "required_items": "必需事项",
+                "provided": "已提供",
+                "partial": "部分提供",
+                "pending": "未提供",
+                "na": "不适用",
+            },
+            "en": {
+                "title": "Due Diligence Readiness Report",
+                "generated_at": "Generated at",
+                "section": "Section ",
+                "th_no": "No",
+                "th_item": "Item",
+                "th_risk": "Risk",
+                "th_status": "Status",
+                "th_files": "Files",
+                "th_notes": "Notes",
+                "risk_high": "High",
+                "risk_medium": "Medium",
+                "risk_low": "Low",
+                "status_provided": "✓ Provided",
+                "status_partial": "△ Partial",
+                "status_pending": "✗ Pending",
+                "status_na": "— N/A",
+                "item_statement": "Item note",
+                "metric": "Metric",
+                "value": "Value",
+                "score": "Readiness Score",
+                "required_items": "Required Items",
+                "provided": "Provided",
+                "partial": "Partial",
+                "pending": "Pending",
+                "na": "N/A",
+            },
+        }[lang]
+
+        title = doc.add_paragraph()
+        r1 = title.add_run(labels["title"])
+        r1.bold = True
+        r1.font.size = Pt(22)
+        r1.font.name = "Segoe UI"
+        set_east_asia(r1._element, "Microsoft YaHei")
+
+        project_name = (data.get("project") or {}).get("name") or ""
+        if project_name:
+            p2 = doc.add_paragraph()
+            r2 = p2.add_run(str(project_name))
+            r2.bold = True
+            r2.font.size = Pt(14)
+            set_east_asia(r2._element, "Microsoft YaHei")
+
+        generated_at = data.get("generated_at") or ""
+        if generated_at:
+            p3 = doc.add_paragraph()
+            r3 = p3.add_run(f"{labels['generated_at']}: {generated_at}")
+            r3.font.size = Pt(10)
+            set_east_asia(r3._element, "Microsoft YaHei")
+
+        doc.add_paragraph()
+
+        summary = doc.add_table(rows=1, cols=2)
+        summary.style = "Table Grid"
+        hdr = summary.rows[0].cells
+        hdr[0].text = labels["metric"]
+        hdr[1].text = labels["value"]
+        rows = [
+            (labels["score"], f"{data.get('score_pct', 0)}%"),
+            (labels["required_items"], str(data.get("total", 0))),
+            (labels["provided"], str(data.get("provided", 0))),
+            (labels["partial"], str(data.get("partial", 0))),
+            (labels["pending"], str(data.get("pending", 0))),
+            (labels["na"], str(data.get("na", 0))),
+        ]
+        for k, v in rows:
+            row = summary.add_row().cells
+            row[0].text = k
+            row[1].text = v
+
+        doc.add_paragraph()
+
+        status_map = {
+            "provided": labels["status_provided"],
+            "partial": labels["status_partial"],
+            "pending": labels["status_pending"],
+            "na": labels["status_na"],
+        }
+
+        risk_map = {
+            "high": labels["risk_high"],
+            "medium": labels["risk_medium"],
+            "low": labels["risk_low"],
+        }
+
+        for sec in data.get("sections") or []:
+            sec_no = sec.get("section_no")
+            h = doc.add_paragraph()
+            rh = h.add_run(f"{labels['section']}{sec_no}")
+            rh.bold = True
+            rh.font.size = Pt(14)
+            set_east_asia(rh._element, "Microsoft YaHei")
+
+            items = sec.get("items") or []
+            tbl = doc.add_table(rows=1, cols=6)
+            tbl.style = "Table Grid"
+            head = tbl.rows[0].cells
+            head[0].text = labels["th_no"]
+            head[1].text = labels["th_item"]
+            head[2].text = labels["th_risk"]
+            head[3].text = labels["th_status"]
+            head[4].text = labels["th_files"]
+            head[5].text = labels["th_notes"]
+            for it in items:
+                rr = tbl.add_row().cells
+                rr[0].text = str(it.get("item_no") or "")
+                rr[1].text = str(it.get("title") or it.get("name") or "")
+                rr[2].text = risk_map.get(it.get("risk_level"), labels["risk_low"])
+                rr[3].text = status_map.get(it.get("status"), str(it.get("status") or ""))
+
+                files = it.get("files") or []
+                rr[4].text = "\n".join([str(f.get("file_name") or "") for f in files if f])
+                notes_lines = [str((f.get("notes") or "")).strip() for f in files if f]
+                notes = "\n".join([n for n in notes_lines if n])
+                statement = str((it.get("statement") or "")).strip()
+                if statement:
+                    notes = (notes + ("\n\n" if notes else "") + f"{labels['item_statement']}: {statement}")
+                rr[5].text = notes
+
+            doc.add_paragraph()
+
+        out = io.BytesIO()
+        doc.save(out)
+        out.seek(0)
         return StreamingResponse(
-            io.BytesIO(pdf_bytes),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=DD_Report_{project_id}.pdf"}
+            out,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename=DD_Report_{project_id}.docx"}
         )
     except Exception as e:
-        raise HTTPException(500, f"PDF生成失败，请使用HTML导出后在浏览器中打印为PDF。错误：{str(e)}")
+        raise HTTPException(500, f"Word生成失败：{str(e)}")
 
 
 # ── Cabinet → Folder export ──────────────────────────────────────────────────
@@ -121,6 +353,11 @@ _ILLEGAL_CHARS = re.compile(r'[\\/:*?"<>|]')
 def _sanitize(name: str) -> str:
     name = _ILLEGAL_CHARS.sub("_", name)
     return name.strip(". ") or "_"
+
+def _content_disposition_attachment(filename: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", filename).strip("._") or "download"
+    quoted = quote(filename, safe="")
+    return f'attachment; filename="{safe}"; filename*=UTF-8\'\'{quoted}'
 
 def _unique_dest(folder: str, filename: str) -> str:
     """Return a non-colliding destination path, appending _(2), _(3) etc."""
@@ -514,7 +751,7 @@ def export_ldd_zip(project_id: int):
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": _content_disposition_attachment(filename)}
     )
 
 
@@ -604,5 +841,166 @@ def export_category_zip(project_id: int, cat_id: int):
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": _content_disposition_attachment(filename)}
     )
+
+
+# ── Founder Background Report (Word + ZIP) ───────────────────────────────────
+
+@router.get("/projects/{project_id}/export/founder-report")
+def export_founder_report(project_id: int):
+    from ..database import get_db
+    from .founders import FOUNDER_CHECKLIST, DIMENSION_LABELS
+
+    db = get_db()
+    project = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not project:
+        db.close()
+        raise HTTPException(404, "项目不存在")
+
+    founders = db.execute("SELECT * FROM founders WHERE project_id=? ORDER BY id", (project_id,)).fetchall()
+
+    # collect checklist statuses and files per founder
+    founder_data = []
+    for founder in founders:
+        fid = founder["id"]
+        statuses = {
+            r["item_code"]: dict(r)
+            for r in db.execute("SELECT * FROM founder_checklist_status WHERE founder_id=?", (fid,)).fetchall()
+        }
+        files_by_code = {}
+        all_files = db.execute("SELECT * FROM founder_files WHERE founder_id=?", (fid,)).fetchall()
+        for f in all_files:
+            code = f["item_code"] or ""
+            files_by_code.setdefault(code, []).append(dict(f))
+
+        items = []
+        for item in FOUNDER_CHECKLIST:
+            s = statuses.get(item["code"], {})
+            items.append({
+                **item,
+                "status": s.get("status", "pending"),
+                "statement": s.get("statement", ""),
+                "files": files_by_code.get(item["code"], []),
+            })
+
+        founder_data.append({
+            "founder": dict(founder),
+            "items": items,
+            "all_files": [dict(f) for f in all_files],
+        })
+    db.close()
+
+    try:
+        from docx import Document
+        from docx.shared import Pt, RGBColor
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        def set_east_asia(el, font_name):
+            rPr = el.find(qn("w:rPr"))
+            if rPr is None:
+                rPr = OxmlElement("w:rPr"); el.insert(0, rPr)
+            rFonts = rPr.find(qn("w:rFonts"))
+            if rFonts is None:
+                rFonts = OxmlElement("w:rFonts"); rPr.append(rFonts)
+            rFonts.set(qn("w:eastAsia"), font_name)
+
+        status_map = {"provided": "✓ 已提供", "partial": "△ 部分提供", "pending": "✗ 未提供", "na": "— 不适用"}
+        risk_map = {"high": "高", "medium": "中", "low": "低"}
+
+        doc = Document()
+        normal = doc.styles["Normal"]
+        normal.font.name = "Microsoft YaHei"
+        normal.font.size = Pt(10.5)
+        set_east_asia(normal._element, "Microsoft YaHei")
+
+        # Title
+        tp = doc.add_paragraph()
+        tr = tp.add_run("创始人背景核查报告")
+        tr.bold = True; tr.font.size = Pt(20)
+        set_east_asia(tr._element, "Microsoft YaHei")
+
+        pn = doc.add_paragraph()
+        pr = pn.add_run(str(project["name"] or ""))
+        pr.font.size = Pt(13)
+        set_east_asia(pr._element, "Microsoft YaHei")
+
+        from datetime import datetime
+        doc.add_paragraph().add_run(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}").font.size = Pt(10)
+        doc.add_paragraph()
+
+        for fd in founder_data:
+            f = fd["founder"]
+            # Founder heading
+            fh = doc.add_paragraph()
+            fhr = fh.add_run(f"▌ {f['name']}  {f.get('role') or ''}")
+            fhr.bold = True; fhr.font.size = Pt(14)
+            set_east_asia(fhr._element, "Microsoft YaHei")
+
+            # group items by dimension
+            from itertools import groupby
+            dims_seen = []
+            dims_map = {}
+            for item in fd["items"]:
+                d = item["dimension"]
+                if d not in dims_map:
+                    dims_map[d] = []
+                    dims_seen.append(d)
+                dims_map[d].append(item)
+
+            for dim in dims_seen:
+                dim_label = DIMENSION_LABELS.get(dim, {}).get("zh", dim)
+                dp = doc.add_paragraph()
+                dr = dp.add_run(f"  {dim}. {dim_label}")
+                dr.bold = True; dr.font.size = Pt(11)
+                set_east_asia(dr._element, "Microsoft YaHei")
+
+                tbl = doc.add_table(rows=1, cols=5)
+                tbl.style = "Table Grid"
+                hdr = tbl.rows[0].cells
+                for i, h in enumerate(["编号", "事项", "风险", "状态", "文件/说明"]):
+                    hdr[i].text = h
+
+                for item in dims_map[dim]:
+                    row = tbl.add_row().cells
+                    row[0].text = item["code"]
+                    row[1].text = item["title"]
+                    row[2].text = risk_map.get(item["risk_level"], "")
+                    row[3].text = status_map.get(item["status"], item["status"])
+                    parts = [f["file_name"] for f in item["files"]]
+                    if item.get("statement"):
+                        parts.append(item["statement"])
+                    row[4].text = "\n".join(parts)
+
+                doc.add_paragraph()
+
+        # save docx to memory
+        docx_buf = io.BytesIO()
+        doc.save(docx_buf)
+        docx_buf.seek(0)
+
+        # build ZIP: docx + all founder files
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("创始人背景核查报告.docx", docx_buf.read())
+            for fd in founder_data:
+                fname = _sanitize(fd["founder"]["name"] or f"founder_{fd['founder']['id']}")
+                for ff in fd["all_files"]:
+                    src = ff.get("file_path", "")
+                    if src and os.path.isfile(src):
+                        zip_name = f"{fname}/{ff['file_name']}"
+                        try:
+                            zf.write(src, zip_name)
+                        except Exception:
+                            pass
+
+        zip_buf.seek(0)
+        proj_name = _sanitize(str(project["name"] or project_id))
+        return StreamingResponse(
+            zip_buf,
+            media_type="application/zip",
+            headers={"Content-Disposition": _content_disposition_attachment(f"founder_report_{proj_name}.zip")}
+        )
+    except Exception as e:
+        raise HTTPException(500, f"报告生成失败：{str(e)}")

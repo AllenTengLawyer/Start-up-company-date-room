@@ -1,0 +1,80 @@
+[
+  {"name": "01-Corporate-Formation", "children": [
+    {"name": "01-Certificate-of-Incorporation"},
+    {"name": "02-Bylaws"},
+    {"name": "03-Formation-Documents"},
+    {"name": "04-Amendments"}
+  ]},
+  {"name": "02-Corporate-Governance", "children": [
+    {"name": "01-Board-Materials"},
+    {"name": "02-Stockholder-Materials"},
+    {"name": "03-Committee-Materials"},
+    {"name": "04-Corporate-Policies"}
+  ]},
+  {"name": "03-Capitalization-Financing", "children": [
+    {"name": "01-Cap-Table"},
+    {"name": "02-Stock-Issuances"},
+    {"name": "03-Stock-Options-Equity"},
+    {"name": "04-Financing-Rounds"},
+    {"name": "05-Convertible-Notes-SAFEs"},
+    {"name": "06-Warrants"}
+  ]},
+  {"name": "04-Contracts-Agreements", "children": [
+    {"name": "01-Customer-Contracts"},
+    {"name": "02-Vendor-Supplier-Agreements"},
+    {"name": "03-Partnership-Agreements"},
+    {"name": "04-Other-Material-Contracts"}
+  ]},
+  {"name": "05-Intellectual-Property", "children": [
+    {"name": "01-Patents"},
+    {"name": "02-Trademarks"},
+    {"name": "03-Copyrights"},
+    {"name": "04-Trade-Secrets"},
+    {"name": "05-IP-Assignments"},
+    {"name": "06-Licenses"}
+  ]},
+  {"name": "06-Human-Resources", "children": [
+    {"name": "01-Employee-Agreements"},
+    {"name": "02-Consultant-Contractor-Agreements"},
+    {"name": "03-Equity-Plans-Grants"},
+    {"name": "04-Benefits-Plans"},
+    {"name": "05-Org-Chart-Headcount"},
+    {"name": "06-HR-Policies"}
+  ]},
+  {"name": "07-Financial-Records", "children": [
+    {"name": "01-Financial-Statements"},
+    {"name": "02-Budgets-Projections"},
+    {"name": "03-Bank-Statements"},
+    {"name": "04-Debt-Obligations"},
+    {"name": "05-Audit-Reports"}
+  ]},
+  {"name": "08-Legal-Compliance", "children": [
+    {"name": "01-Litigation-Disputes"},
+    {"name": "02-Regulatory-Filings"},
+    {"name": "03-Compliance-Certifications"},
+    {"name": "04-Government-Correspondence"}
+  ]},
+  {"name": "09-Business-Operations", "children": [
+    {"name": "01-Business-Plan"},
+    {"name": "02-Marketing-Materials"},
+    {"name": "03-Product-Documentation"},
+    {"name": "04-Key-Metrics-KPIs"}
+  ]},
+  {"name": "10-Tax-Records", "children": [
+    {"name": "01-Federal-Tax-Returns"},
+    {"name": "02-State-Tax-Returns"},
+    {"name": "03-Tax-Elections"},
+    {"name": "04-Tax-Correspondence"}
+  ]},
+  {"name": "11-Insurance", "children": [
+    {"name": "01-General-Liability"},
+    {"name": "02-D-O-Insurance"},
+    {"name": "03-Cyber-Insurance"},
+    {"name": "04-Other-Policies"}
+  ]},
+  {"name": "12-Real-Estate-Assets", "children": [
+    {"name": "01-Leases"},
+    {"name": "02-Property-Ownership"},
+    {"name": "03-Facility-Documents"}
+  ]}
+]

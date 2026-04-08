@@ -1,0 +1,138 @@
+[
+  {
+    "section_no": "1",
+    "section_title": "Corporate Formation",
+    "section_title_en": "Corporate Formation",
+    "items": [
+      {"item_no": "1.1", "title": "Certificate of Incorporation", "title_en": "Certificate of Incorporation", "description": "Original Certificate of Incorporation, Amended and Restated versions, state filing receipts", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.2", "title": "Bylaws", "title_en": "Bylaws", "description": "Original Bylaws, Amended and Restated versions, current effective version", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.3", "title": "Formation Documents", "title_en": "Formation Documents", "description": "Delaware franchise tax receipts, registered agent agreements, initial organizational resolutions, IRS Form SS-4 and EIN confirmation", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "1.4", "title": "Amendments to Formation Documents", "title_en": "Amendments", "description": "All amendments to formation documents, Certificates of Amendment, state filing confirmations", "item_type": "file", "risk_level": "medium", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "2",
+    "section_title": "Corporate Governance",
+    "section_title_en": "Corporate Governance",
+    "items": [
+      {"item_no": "2.1", "title": "Board Materials", "title_en": "Board Materials", "description": "Board meeting minutes (chronological), written consents in lieu of meetings, board resolutions, board presentations", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "2.2", "title": "Stockholder Materials", "title_en": "Stockholder Materials", "description": "Stockholder meeting minutes, written consents, stockholder resolutions, voting agreements", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "2.3", "title": "Committee Materials", "title_en": "Committee Materials", "description": "Audit Committee materials, Compensation Committee materials, other committee materials", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "2.4", "title": "Corporate Policies", "title_en": "Corporate Policies", "description": "Code of Conduct, Conflict of Interest Policy, Whistleblower Policy, Document Retention Policy, Insider Trading Policy", "item_type": "file", "risk_level": "medium", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "3",
+    "section_title": "Capitalization & Financing",
+    "section_title_en": "Capitalization & Financing",
+    "items": [
+      {"item_no": "3.1", "title": "Cap Table", "title_en": "Cap Table", "description": "Current capitalization table (Excel/Carta export), historical cap tables, fully diluted analysis, waterfall analysis", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "3.2", "title": "Stock Issuances", "title_en": "Stock Issuances", "description": "Stock purchase agreements, stock certificates or ledger, 83(b) elections, founder stock documentation", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "3.3", "title": "Stock Options & Equity Plans", "title_en": "Stock Options & Equity", "description": "Stock option plan documents, individual option grants, exercise notices, RSU/RSA agreements", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "3.4", "title": "Financing Round Documents", "title_en": "Financing Rounds", "description": "Term sheets, Stock Purchase Agreements, Investor Rights Agreements, Voting Agreements, ROFR Agreements, investor decks, closing documents", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "3.5", "title": "Convertible Notes & SAFEs", "title_en": "Convertible Notes & SAFEs", "description": "Note/SAFE purchase agreements, conversion records, cap table impact analysis", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "3.6", "title": "Warrants", "title_en": "Warrants", "description": "Warrant agreements, exercise records", "item_type": "file", "risk_level": "medium", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "4",
+    "section_title": "Contracts & Agreements",
+    "section_title_en": "Contracts & Agreements",
+    "items": [
+      {"item_no": "4.1", "title": "Customer Contracts", "title_en": "Customer Contracts", "description": "Master Service Agreements, Statements of Work, order forms, contract summary spreadsheet", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "4.2", "title": "Vendor & Supplier Agreements", "title_en": "Vendor & Supplier Agreements", "description": "Software licenses, service provider agreements, manufacturing agreements, supply agreements", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "4.3", "title": "Partnership Agreements", "title_en": "Partnership Agreements", "description": "Strategic partnership agreements, joint venture agreements, reseller agreements, distribution agreements", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "4.4", "title": "Other Material Contracts", "title_en": "Other Material Contracts", "description": "Any contract >$50K annual value, long-term commitments, contracts with unusual terms", "item_type": "file", "risk_level": "high", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "5",
+    "section_title": "Intellectual Property",
+    "section_title_en": "Intellectual Property",
+    "items": [
+      {"item_no": "5.1", "title": "Patents", "title_en": "Patents", "description": "Issued patents, pending applications, patent assignments, freedom-to-operate analyses", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "5.2", "title": "Trademarks", "title_en": "Trademarks", "description": "Registered trademarks, pending applications, trademark assignments", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "5.3", "title": "Copyrights", "title_en": "Copyrights", "description": "Copyright registrations, work-for-hire agreements, open source compliance", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "5.4", "title": "IP Assignments", "title_en": "IP Assignments", "description": "Founder IP assignment agreements, employee IP assignment agreements, contractor IP assignments", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "5.5", "title": "IP Licenses", "title_en": "IP Licenses", "description": "Inbound licenses, outbound licenses, open source license inventory", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "5.6", "title": "Trade Secrets & Confidentiality", "title_en": "Trade Secrets", "description": "Trade secret documentation, NDA templates, confidentiality policies", "item_type": "file", "risk_level": "high", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "6",
+    "section_title": "Human Resources",
+    "section_title_en": "Human Resources",
+    "items": [
+      {"item_no": "6.1", "title": "Employee Agreements", "title_en": "Employee Agreements", "description": "Executive employment agreements, offer letters, at-will employment confirmations", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "6.2", "title": "Consultant & Contractor Agreements", "title_en": "Consultant & Contractor Agreements", "description": "Independent contractor agreements, consulting agreements, SOWs", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "6.3", "title": "Equity Plans & Grants", "title_en": "Equity Plans & Grants", "description": "Equity incentive plan, individual grant agreements, vesting schedules", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "6.4", "title": "Benefits Plans", "title_en": "Benefits Plans", "description": "Health insurance, 401(k) plan documents, other benefit plan summaries", "item_type": "file", "risk_level": "low", "is_required": 0},
+      {"item_no": "6.5", "title": "Org Chart & Headcount", "title_en": "Org Chart & Headcount", "description": "Current org chart, headcount by department, employee roster", "item_type": "file", "risk_level": "low", "is_required": 1},
+      {"item_no": "6.6", "title": "HR Policies", "title_en": "HR Policies", "description": "Employee handbook, non-compete and non-solicitation policies, harassment policies", "item_type": "file", "risk_level": "medium", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "7",
+    "section_title": "Financial Records",
+    "section_title_en": "Financial Records",
+    "items": [
+      {"item_no": "7.1", "title": "Financial Statements", "title_en": "Financial Statements", "description": "Last 24 months P&L, balance sheet, cash flow statements (GAAP)", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "7.2", "title": "Budgets & Projections", "title_en": "Budgets & Projections", "description": "Current year budget, 3-year financial model, key assumptions", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "7.3", "title": "Bank Statements", "title_en": "Bank Statements", "description": "Last 12 months bank statements for all accounts", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "7.4", "title": "Debt Obligations", "title_en": "Debt Obligations", "description": "Loan agreements, lines of credit, promissory notes, debt schedule", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "7.5", "title": "Audit Reports", "title_en": "Audit Reports", "description": "Audited financial statements, auditor management letters (if any)", "item_type": "file", "risk_level": "high", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "8",
+    "section_title": "Legal & Compliance",
+    "section_title_en": "Legal & Compliance",
+    "items": [
+      {"item_no": "8.1", "title": "Litigation & Disputes", "title_en": "Litigation & Disputes", "description": "Pending or threatened litigation, arbitration proceedings, demand letters", "item_type": "statement", "risk_level": "high", "is_required": 1},
+      {"item_no": "8.2", "title": "Regulatory Filings", "title_en": "Regulatory Filings", "description": "SEC filings (if applicable), state regulatory filings, foreign qualification filings", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "8.3", "title": "Compliance Certifications", "title_en": "Compliance Certifications", "description": "SOC 2, ISO certifications, industry-specific compliance certifications", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "8.4", "title": "Government Correspondence", "title_en": "Government Correspondence", "description": "Material correspondence with government agencies, regulatory inquiries, responses", "item_type": "file", "risk_level": "high", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "9",
+    "section_title": "Business Operations",
+    "section_title_en": "Business Operations",
+    "items": [
+      {"item_no": "9.1", "title": "Business Plan & Pitch Deck", "title_en": "Business Plan", "description": "Current business plan, investor pitch deck, executive summary", "item_type": "file", "risk_level": "low", "is_required": 1},
+      {"item_no": "9.2", "title": "Marketing Materials", "title_en": "Marketing Materials", "description": "Product brochures, website screenshots, case studies, press releases", "item_type": "file", "risk_level": "low", "is_required": 0},
+      {"item_no": "9.3", "title": "Product Documentation", "title_en": "Product Documentation", "description": "Product roadmap, technical architecture overview, API documentation", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "9.4", "title": "Key Metrics & KPIs", "title_en": "Key Metrics", "description": "MRR/ARR history, customer count, churn rate, unit economics", "item_type": "file", "risk_level": "high", "is_required": 1}
+    ]
+  },
+  {
+    "section_no": "10",
+    "section_title": "Tax Records",
+    "section_title_en": "Tax Records",
+    "items": [
+      {"item_no": "10.1", "title": "Federal & State Tax Returns", "title_en": "Tax Returns", "description": "Last 3 years federal and state income tax returns", "item_type": "file", "risk_level": "high", "is_required": 1},
+      {"item_no": "10.2", "title": "Tax Notices & Correspondence", "title_en": "Tax Notices", "description": "IRS and state tax notices, audit correspondence, tax dispute documentation", "item_type": "file", "risk_level": "high", "is_required": 0},
+      {"item_no": "10.3", "title": "R&D Tax Credits", "title_en": "R&D Tax Credits", "description": "R&D tax credit studies, supporting documentation", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "10.4", "title": "Sales Tax & Payroll Tax", "title_en": "Sales & Payroll Tax", "description": "Sales tax registrations and filings, payroll tax records, 1099s", "item_type": "file", "risk_level": "medium", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "11",
+    "section_title": "Insurance",
+    "section_title_en": "Insurance",
+    "items": [
+      {"item_no": "11.1", "title": "Insurance Policies", "title_en": "Insurance Policies", "description": "D&O insurance, general liability, E&O/professional liability, cyber liability, workers compensation", "item_type": "file", "risk_level": "medium", "is_required": 1},
+      {"item_no": "11.2", "title": "Insurance Claims History", "title_en": "Claims History", "description": "History of insurance claims filed in last 3 years", "item_type": "statement", "risk_level": "medium", "is_required": 0}
+    ]
+  },
+  {
+    "section_no": "12",
+    "section_title": "Real Estate & Assets",
+    "section_title_en": "Real Estate & Assets",
+    "items": [
+      {"item_no": "12.1", "title": "Office Leases", "title_en": "Office Leases", "description": "Current office lease agreements, lease amendments, sublease agreements", "item_type": "file", "risk_level": "medium", "is_required": 0},
+      {"item_no": "12.2", "title": "Equipment & Asset Schedules", "title_en": "Equipment & Assets", "description": "Fixed asset schedule, equipment leases, material personal property", "item_type": "file", "risk_level": "low", "is_required": 0},
+      {"item_no": "12.3", "title": "Real Property Ownership", "title_en": "Real Property", "description": "Deeds, title insurance, property tax records (if company owns real property)", "item_type": "file", "risk_level": "medium", "is_required": 0}
+    ]
+  }
+]

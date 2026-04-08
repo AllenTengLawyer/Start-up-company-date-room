@@ -22,6 +22,7 @@
   "btn_scan": "扫描目录",
   "btn_register": "注册文件",
   "btn_export_pdf": "导出PDF报告",
+  "btn_export_docx": "导出Word报告",
   "btn_export_html": "预览HTML报告",
   "status_provided": "已提供",
   "status_partial": "部分提供",

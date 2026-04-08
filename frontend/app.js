@@ -118,6 +118,7 @@ const App = {
       }
     }
 
+
     async function deleteCurrentProject() {
       if (!currentProject.value) return;
       if (!confirm(`确定要删除项目 "${currentProject.value.name}" 吗？\n\n此操作将删除该项目的所有数据，包括：\n- 文件分类和记录\n- LDD 尽调清单\n- 创始人档案\n\n此操作不可撤销！`)) return;

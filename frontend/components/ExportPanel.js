@@ -1,6 +1,6 @@
 window.ExportPanel = {
   setup() {
-    const { t } = VueI18n.useI18n();
+    const { t, locale } = VueI18n.useI18n();
     const route = VueRouter.useRoute();
     const router = VueRouter.useRouter();
     const projectId = Vue.computed(() => route.params.id);
@@ -13,19 +13,23 @@ window.ExportPanel = {
     const jsonLoading = Vue.ref(false);
     const importLoading = Vue.ref(false);
     const importResult = Vue.ref(null);
+    const projectMode = Vue.ref('');
+    const founderLoading = Vue.ref(false);
 
     Vue.onMounted(async () => {
       try {
         const proj = await api('GET', `/projects/${projectId.value}`);
         const root = String(proj.root_path || '').replace(/[\\\/]+$/, '');
         destPath.value = root ? (root + '/_export') : '';
+        projectMode.value = proj.mode || '';
       } catch(e) {}
     });
 
-    async function exportPdf() {
+    async function exportDocx() {
       loading.value = true; error.value = '';
       try {
-        const res = await fetch(`/api/projects/${projectId.value}/export/pdf`);
+        const lang = String(locale.value || '').toLowerCase().startsWith('en') ? 'en' : 'zh';
+        const res = await fetch(`/api/projects/${projectId.value}/export/docx?lang=${encodeURIComponent(lang)}`);
         if (!res.ok) {
           const contentType = (res.headers.get('content-type') || '').toLowerCase();
           if (contentType.includes('application/json')) {
@@ -39,22 +43,17 @@ window.ExportPanel = {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = `DD_Report_${projectId.value}.pdf`;
+        a.href = url; a.download = `DD_Report_${projectId.value}.docx`;
         a.click(); URL.revokeObjectURL(url);
       } catch(e) {
-        const msg = e && e.message ? e.message : String(e);
-        if (msg.includes('cannot load library') || msg.includes('PDF生成失败')) {
-          error.value = '当前环境无法生成 PDF（缺少系统组件）。已改为打开 HTML 预览，请在浏览器中“打印”另存为 PDF。';
-          exportHtml();
-        } else {
-          error.value = msg;
-        }
+        error.value = e && e.message ? e.message : String(e);
       }
       finally { loading.value = false; }
     }
 
     function exportHtml() {
-      window.open(`/api/projects/${projectId.value}/export/html`, '_blank');
+      const lang = String(locale.value || '').toLowerCase().startsWith('en') ? 'en' : 'zh';
+      window.open(`/api/projects/${projectId.value}/export/html?lang=${encodeURIComponent(lang)}`, '_blank');
     }
 
     async function exportFolder() {
@@ -129,69 +128,104 @@ window.ExportPanel = {
       finally { importLoading.value = false; event.target.value = ''; }
     }
 
-    return { t, loading, error, exportPdf, exportHtml,
+    async function exportFounderReport() {
+      founderLoading.value = true; error.value = '';
+      try {
+        const res = await fetch(`/api/projects/${projectId.value}/export/founder-report`);
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(e.detail || res.statusText);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `founder_report_${projectId.value}.zip`;
+        a.click(); URL.revokeObjectURL(url);
+      } catch(e) { error.value = e.message || String(e); }
+      finally { founderLoading.value = false; }
+    }
+
+    return { t, loading, error, exportDocx, exportHtml,
              destPath, folderLoading, folderResult, showSkipped, exportFolder,
              pickDestFolder,
-             jsonLoading, importLoading, importResult, exportJson, importJson };
+             jsonLoading, importLoading, importResult, exportJson, importJson,
+             projectMode, founderLoading, exportFounderReport };
   },
   template: `
     <div class="page">
       <div class="page-header"><h2>{{ t('nav_export') }}</h2></div>
       <div class="export-panel card">
-        <div class="export-option">
-          <div class="export-icon">📄</div>
-          <div class="export-info">
-            <div class="export-title">PDF 自查报告</div>
-            <div class="export-desc">包含所有LDD项目的完成状态、风险等级和已关联文件，适合内部存档</div>
-          </div>
-          <button class="btn-primary" @click="exportPdf" :disabled="loading">
-            {{ loading ? '生成中...' : t('btn_export_pdf') }}
-          </button>
-        </div>
-        <div class="export-option">
-          <div class="export-icon">🌐</div>
-          <div class="export-info">
-            <div class="export-title">HTML 预览</div>
-            <div class="export-desc">在浏览器中预览报告，可使用浏览器打印功能另存为PDF</div>
-          </div>
-          <button class="btn-secondary" @click="exportHtml">{{ t('btn_export_html') }}</button>
-        </div>
-        <div class="export-option" style="flex-direction:column;align-items:stretch;gap:10px;">
-          <div style="display:flex;align-items:center;gap:16px;">
-            <div class="export-icon">📁</div>
+
+        <!-- early_team 模式：只显示创始人报告导出 -->
+        <template v-if="projectMode === 'early_team'">
+          <div class="export-option">
+            <div class="export-icon">👤</div>
             <div class="export-info">
-              <div class="export-title">{{ t('export_folder_title') }}</div>
-              <div class="export-desc">{{ t('export_folder_desc') }}</div>
+              <div class="export-title">创始人背景核查报告</div>
+              <div class="export-desc">按创始人分组导出 Word 报告 + 附件，打包为 ZIP</div>
             </div>
-            <button class="btn-secondary" @click="exportFolder" :disabled="folderLoading || !destPath.trim()">
-              {{ folderLoading ? '导出中...' : t('btn_export_folder') }}
+            <button class="btn-primary" @click="exportFounderReport" :disabled="founderLoading">
+              {{ founderLoading ? '生成中...' : '导出 ZIP' }}
             </button>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;padding-left:56px;">
-            <label style="font-size:12px;color:#4a5568;white-space:nowrap;">{{ t('export_folder_dest') }}</label>
-            <input v-model="destPath" class="input input-sm" style="flex:1;" placeholder="目标文件夹路径...">
-            <button class="btn-ghost" @click="pickDestFolder" :disabled="folderLoading">选择...</button>
+        </template>
+
+        <!-- 普通模式：显示完整导出选项 -->
+        <template v-else>
+          <div class="export-option">
+            <div class="export-icon">📝</div>
+            <div class="export-info">
+              <div class="export-title">Word 自查报告</div>
+              <div class="export-desc">.docx 格式，包含项目概览、表格与清单，适合内部存档与对外协作</div>
+            </div>
+            <button class="btn-primary" @click="exportDocx" :disabled="loading">
+              {{ loading ? '生成中...' : t('btn_export_docx') }}
+            </button>
           </div>
-          <div v-if="folderResult" style="padding-left:56px;font-size:12px;">
-            <div style="color:#276749;">✓ {{ t('export_folder_success').replace('{n}', folderResult.copied) }}</div>
-            <div v-if="folderResult.skipped.length" style="margin-top:4px;">
-              <span style="color:#c05621;cursor:pointer;" @click="showSkipped=!showSkipped">
-                ⚠ {{ t('export_folder_skipped').replace('{n}', folderResult.skipped.length) }}
-                {{ showSkipped ? '▲' : '▼' }}
-              </span>
-              <div v-if="showSkipped" style="margin-top:4px;display:flex;flex-direction:column;gap:2px;">
-                <div v-for="s in folderResult.skipped" :key="s.file_name" style="color:#718096;">
-                  {{ s.file_name }} — {{ s.reason }}
+          <div class="export-option">
+            <div class="export-icon">🌐</div>
+            <div class="export-info">
+              <div class="export-title">HTML 预览</div>
+              <div class="export-desc">在浏览器中预览报告，可使用浏览器打印功能另存为PDF</div>
+            </div>
+            <button class="btn-secondary" @click="exportHtml">{{ t('btn_export_html') }}</button>
+          </div>
+          <div class="export-option" style="flex-direction:column;align-items:stretch;gap:10px;">
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div class="export-icon">📁</div>
+              <div class="export-info">
+                <div class="export-title">{{ t('export_folder_title') }}</div>
+                <div class="export-desc">{{ t('export_folder_desc') }}</div>
+              </div>
+              <button class="btn-secondary" @click="exportFolder" :disabled="folderLoading || !destPath.trim()">
+                {{ folderLoading ? '导出中...' : t('btn_export_folder') }}
+              </button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding-left:56px;">
+              <label style="font-size:12px;color:#4a5568;white-space:nowrap;">{{ t('export_folder_dest') }}</label>
+              <input v-model="destPath" class="input input-sm" style="flex:1;" placeholder="目标文件夹路径...">
+              <button class="btn-ghost" @click="pickDestFolder" :disabled="folderLoading">选择...</button>
+            </div>
+            <div v-if="folderResult" style="padding-left:56px;font-size:12px;">
+              <div style="color:#276749;">✓ {{ t('export_folder_success').replace('{n}', folderResult.copied) }}</div>
+              <div v-if="folderResult.skipped.length" style="margin-top:4px;">
+                <span style="color:#c05621;cursor:pointer;" @click="showSkipped=!showSkipped">
+                  ⚠ {{ t('export_folder_skipped').replace('{n}', folderResult.skipped.length) }}
+                  {{ showSkipped ? '▲' : '▼' }}
+                </span>
+                <div v-if="showSkipped" style="margin-top:4px;display:flex;flex-direction:column;gap:2px;">
+                  <div v-for="s in folderResult.skipped" :key="s.file_name" style="color:#718096;">
+                    {{ s.file_name }} — {{ s.reason }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="error" v-if="error">
-          {{ error }}
-          <div class="error-hint">提示：如PDF生成失败，请使用HTML预览后在浏览器中打印为PDF</div>
-        </div>
-        <!-- JSON backup -->
+        </template>
+
+        <div class="error" v-if="error">{{ error }}</div>
+
+        <!-- JSON backup/import（所有模式均显示） -->
         <div class="export-option">
           <div class="export-icon">💾</div>
           <div class="export-info">
@@ -202,7 +236,6 @@ window.ExportPanel = {
             {{ jsonLoading ? '导出中...' : t('btn_export_json') }}
           </button>
         </div>
-        <!-- JSON import -->
         <div class="export-option">
           <div class="export-icon">📥</div>
           <div class="export-info">

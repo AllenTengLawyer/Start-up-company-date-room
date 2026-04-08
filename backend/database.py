@@ -272,5 +272,15 @@ def migrate_db():
     except sqlite3.OperationalError:
         pass
 
+    # Migration: add section_title columns to ldd_items
+    try:
+        c.execute("ALTER TABLE ldd_items ADD COLUMN section_title TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE ldd_items ADD COLUMN section_title_en TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()

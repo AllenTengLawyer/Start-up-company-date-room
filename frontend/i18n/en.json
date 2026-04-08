@@ -22,6 +22,7 @@
   "btn_scan": "Scan Directory",
   "btn_register": "Register Files",
   "btn_export_pdf": "Export PDF Report",
+  "btn_export_docx": "Export Word Report",
   "btn_export_html": "Preview HTML Report",
   "status_provided": "Provided",
   "status_partial": "Partial",

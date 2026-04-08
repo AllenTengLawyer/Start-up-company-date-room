@@ -9,6 +9,7 @@ window.FileScanner = {
     const { t } = VueI18n.useI18n();
     const route = VueRouter.useRoute();
     const projectId = Vue.computed(() => route.params.id);
+    const projectInfo = Vue.ref(null);
     const categories = Vue.ref([]);
     const registeredFiles = Vue.ref([]);
     const scannedFiles = Vue.ref([]);
@@ -55,11 +56,11 @@ window.FileScanner = {
     const filteredTotal = Vue.ref(0);
     const unclassifiedTotal = Vue.ref(0);
     const categoryCounts = Vue.ref({});
-    const pageSize = Vue.ref(200);
+    const pageSize = Vue.ref(12);
     const pageOffset = Vue.ref(0);
 
     // Scan pagination
-    const scanPageSize = Vue.ref(200);
+    const scanPageSize = Vue.ref(12);
     const scanOffset = Vue.ref(0);
 
     // Details drawer
@@ -130,6 +131,12 @@ window.FileScanner = {
       }
     }
 
+    async function resetAndLoadFiles() {
+      pageOffset.value = 0;
+      clearSelection();
+      await loadFilesPage();
+    }
+
     async function loadCounts() {
       const c = await api('GET', `/projects/${projectId.value}/files/counts`);
       totalFiles.value = c.total || 0;
@@ -168,15 +175,18 @@ window.FileScanner = {
         try {
           await api('POST', `/projects/${projectId.value}/ensure-seeded`);
         } catch (e) { error.value = e.message || String(e); }
-        const [cats] = await Promise.all([
+        const [proj, cats] = await Promise.all([
+          api('GET', `/projects/${projectId.value}`),
           api('GET', `/projects/${projectId.value}/categories`),
         ]);
+        projectInfo.value = proj || null;
         categories.value = cats;
-        await Promise.all([loadCounts(), loadFilesPage()]);
+        await Promise.all([loadCounts(), resetAndLoadFiles()]);
       } catch (e) {
         error.value = e.message || String(e);
         categories.value = [];
         registeredFiles.value = [];
+        projectInfo.value = null;
         totalFiles.value = 0;
         filteredTotal.value = 0;
         unclassifiedTotal.value = 0;
@@ -458,7 +468,7 @@ window.FileScanner = {
       try {
         await api('PUT', `/files/${drawerFileId.value}`, { category_id: Number.isFinite(cid) ? cid : null });
         showToast('分类已更新');
-        await Promise.all([loadCounts(), loadFilesPage()]);
+        await Promise.all([loadCounts(), resetAndLoadFiles()]);
       } catch (e) {
         drawerError.value = e.message || String(e);
       } finally {
@@ -560,15 +570,12 @@ window.FileScanner = {
     function toggleSort(key) {
       if (sortKey.value === key) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
       else { sortKey.value = key; sortDir.value = 'asc'; }
-      pageOffset.value = 0;
-      loadFilesPage();
+      resetAndLoadFiles();
     }
 
     function selectCategory(catId) {
       selectedCatId.value = catId;
-      pageOffset.value = 0;
-      clearSelection();
-      loadFilesPage();
+      resetAndLoadFiles();
     }
 
     const pageNo = Vue.computed(() => Math.floor(pageOffset.value / pageSize.value) + 1);
@@ -913,7 +920,7 @@ window.FileScanner = {
       scannedFiles, selected, scanning,
       activeTab, selectedCatId, addingSubCatId, newCatName, newSubCatName,
       renamingCatId, renamingCatName, catMoreOpenId, sortKey, sortDir, zipLoadingCatId, error, projectId, catPanelWidth, isResizing, dragOverCatId,
-      isDragging, dragFileIds, dragTargetLabel, toastMessage,
+      isDragging, dragFileIds, dragTargetLabel, toastMessage, projectInfo,
       totalFiles, filteredTotal, categoryCounts, pageNo, pageCount, canPrev, canNext,
       suggestedCount,
       // Duplicate detection
@@ -1024,7 +1031,9 @@ window.FileScanner = {
       <div class="cabinet-layout" :style="{ display:'grid', gridTemplateColumns: catPanelWidth + 'px 24px 1fr' }">
         <!-- Category Tree -->
         <div class="cat-panel card" :style="{ width: '100%' }">
-          <div class="panel-title">分类管理</div>
+          <div class="cat-panel-header">
+            <div class="panel-title">分类管理</div>
+          </div>
           <div class="cat-tree">
             <!-- All files -->
             <div
@@ -1143,7 +1152,7 @@ window.FileScanner = {
                       文件名 <span class="sort-icon">{{ sortKey === 'file_name' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
                       <span class="col-resizer" @mousedown.stop="startNameColResize" @click.stop></span>
                     </th>
-                    <th>分类</th>
+                    <th style="width:140px;">分类</th>
                     <th class="sortable-th" @click="toggleSort('registered_at')">
                       入库时间 <span class="sort-icon">{{ sortKey === 'registered_at' ? (sortDir === 'asc' ? '↑' : '↓') : '↕' }}</span>
                     </th>
@@ -1160,8 +1169,8 @@ window.FileScanner = {
                         <button class="file-name-link" @click.stop="openDetails(f, $event)" :title="f.file_name">{{ f.file_name }}</button>
                       </div>
                     </td>
-                    <td>
-                      <select :value="f.category_id" @change="updateFileCategory(f.id, $event.target.value)" class="input input-sm">
+                    <td style="width:140px;max-width:140px;">
+                      <select :value="f.category_id" @change="updateFileCategory(f.id, $event.target.value)" class="input input-sm" style="max-width:130px;min-width:0;width:100%;">
                         <option value="">— 未分类 —</option>
                         <option v-for="c in flatCats" :key="c.id" :value="c.id">
                           {{ '　'.repeat(c.depth) + c.name }}

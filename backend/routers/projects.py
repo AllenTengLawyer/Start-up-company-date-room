@@ -1,9 +1,10 @@
 import json
 import os
+import re
+import sqlite3
 import threading
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import sqlite3
 from typing import Optional
 from ..database import get_db
 from ..seed import seed_project, create_category_folders
@@ -129,6 +130,13 @@ def ensure_seeded(project_id: int):
         if not proj:
             raise HTTPException(404, "项目不存在")
         if proj["mode"] != "established":
+            # early_team: only seed LDD items, no categories
+            has_ldd = db.execute("SELECT 1 FROM ldd_items WHERE project_id=? LIMIT 1", (project_id,)).fetchone()
+            if not has_ldd:
+                from seed import _seed_ldd_items
+                _seed_ldd_items(db, project_id)
+                db.commit()
+                return {"ok": True, "seeded": True}
             return {"ok": True, "seeded": False}
 
         has_cats = db.execute("SELECT 1 FROM categories WHERE project_id=? LIMIT 1", (project_id,)).fetchone()
@@ -149,6 +157,7 @@ def ensure_seeded(project_id: int):
         raise
     finally:
         db.close()
+
 
 @router.api_route("/projects/{project_id}/open-root", methods=["GET", "POST"])
 def open_project_root(project_id: int):

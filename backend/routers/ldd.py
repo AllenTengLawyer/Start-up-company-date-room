@@ -52,7 +52,13 @@ def get_ldd(project_id: int):
         item_dict["statement"] = s.get("statement", "")
         item_dict["mapped_files"] = mappings_by_item.get(item["id"], [])
         sec = item["section_no"]
-        sections.setdefault(sec, {"section_no": sec, "items": []})
+        if sec not in sections:
+            sections[sec] = {
+                "section_no": sec,
+                "section_title": item_dict.get("section_title", ""),
+                "section_title_en": item_dict.get("section_title_en", ""),
+                "items": []
+            }
         sections[sec]["items"].append(item_dict)
 
     db.close()

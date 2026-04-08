@@ -37,7 +37,10 @@ def seed_project(db, project_id: int, root_path: str = None):
         create_category_folders(db, project_id, root_path)
 
 def _seed_categories(db, project_id: int):
-    with open(os.path.join(TEMPLATES_DIR, "cn_categories.json"), encoding="utf-8") as f:
+    proj = db.execute("SELECT company_type FROM projects WHERE id=?", (project_id,)).fetchone()
+    company_type = (proj["company_type"] if proj and "company_type" in proj.keys() else "cn") if proj else "cn"
+    template = "us_categories.json" if str(company_type).lower() == "us" else "cn_categories.json"
+    with open(os.path.join(TEMPLATES_DIR, template), encoding="utf-8") as f:
         cats = json.load(f)
 
     def insert(items, parent_id=None):
@@ -53,20 +56,27 @@ def _seed_categories(db, project_id: int):
     insert(cats)
 
 def _seed_ldd_items(db, project_id: int):
-    with open(os.path.join(TEMPLATES_DIR, "cn_ldd_checklist.json"), encoding="utf-8") as f:
+    proj = db.execute("SELECT company_type FROM projects WHERE id=?", (project_id,)).fetchone()
+    company_type = (proj["company_type"] if proj and "company_type" in proj.keys() else "cn") if proj else "cn"
+    template = "us_ldd_checklist.json" if str(company_type).lower() == "us" else "cn_ldd_checklist.json"
+    with open(os.path.join(TEMPLATES_DIR, template), encoding="utf-8") as f:
         sections = json.load(f)
 
     order = 0
     for section in sections:
+        sec_title = section.get("section_title", "")
+        sec_title_en = section.get("section_title_en", sec_title)
         for item in section["items"]:
             db.execute(
                 """INSERT INTO ldd_items
-                   (project_id, section_no, item_no, title, title_en, description,
+                   (project_id, section_no, section_title, section_title_en, item_no, title, title_en, description,
                     item_type, risk_level, is_required, sort_order)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     project_id,
                     section["section_no"],
+                    sec_title,
+                    sec_title_en,
                     item["item_no"],
                     item["title"],
                     item.get("title_en", ""),

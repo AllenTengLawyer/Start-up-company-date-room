@@ -8,11 +8,9 @@ window.FounderDetail = {
     const checklist = Vue.ref([]);
     const dimensions = Vue.ref({});
     const activeDim = Vue.ref('A');
-    const fileInput = Vue.ref({});
     const error = Vue.ref('');
-    const cabinetFiles = Vue.ref([]);
-    const showCabinetModal = Vue.ref(false);
-    const cabinetTargetCode = Vue.ref(null);
+    const dragOver = Vue.ref({});
+    const uploading = Vue.ref({});
 
     async function load() {
       const data = await api('GET', `/founders/${founderId.value}/checklist`);
@@ -20,13 +18,7 @@ window.FounderDetail = {
       dimensions.value = data.dimensions;
     }
 
-    Vue.onMounted(async () => {
-      const [, files] = await Promise.all([
-        load(),
-        api('GET', `/projects/${projectId.value}/files`),
-      ]);
-      cabinetFiles.value = files;
-    });
+    Vue.onMounted(load);
 
     const dimItems = Vue.computed(() => checklist.value.filter(i => i.dimension === activeDim.value));
     const dimKeys = Vue.computed(() => Object.keys(dimensions.value));
@@ -37,15 +29,49 @@ window.FounderDetail = {
       });
     }
 
-    async function addFile(item) {
-      const fp = fileInput.value[item.code];
-      if (!fp || !fp.trim()) return;
-      const fname = fp.split(/[\\/]/).pop();
-      await api('POST', `/founders/${founderId.value}/files`, {
-        item_code: item.code, file_name: fname, file_path: fp.trim()
-      });
-      fileInput.value[item.code] = '';
-      await load();
+    async function uploadFiles(itemCode, files) {
+      if (!files || files.length === 0) return;
+      uploading.value = { ...uploading.value, [itemCode]: true };
+      error.value = '';
+      try {
+        for (const file of files) {
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('item_code', itemCode);
+          const res = await fetch(`/api/founders/${founderId.value}/upload`, {
+            method: 'POST', body: fd
+          });
+          if (!res.ok) {
+            const e = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(e.detail || res.statusText);
+          }
+        }
+        await load();
+      } catch(e) {
+        error.value = e.message || String(e);
+      } finally {
+        uploading.value = { ...uploading.value, [itemCode]: false };
+      }
+    }
+
+    function onFileInput(item, event) {
+      uploadFiles(item.code, event.target.files);
+      event.target.value = '';
+    }
+
+    function onDrop(item, event) {
+      event.preventDefault();
+      dragOver.value = { ...dragOver.value, [item.code]: false };
+      uploadFiles(item.code, event.dataTransfer.files);
+    }
+
+    function onDragOver(item, event) {
+      event.preventDefault();
+      dragOver.value = { ...dragOver.value, [item.code]: true };
+    }
+
+    function onDragLeave(item) {
+      dragOver.value = { ...dragOver.value, [item.code]: false };
     }
 
     async function removeFile(fileId) {
@@ -54,23 +80,12 @@ window.FounderDetail = {
       await load();
     }
 
-    function openCabinetModal(code) {
-      cabinetTargetCode.value = code;
-      showCabinetModal.value = true;
-    }
-
-    function pickCabinetFile(f) {
-      fileInput.value[cabinetTargetCode.value] = f.file_path;
-      showCabinetModal.value = false;
-    }
-
-    const statusColor = { provided: 'green', partial: 'orange', pending: 'red', na: 'gray' };
     const riskLabel = { high: '高', medium: '中', low: '低' };
 
-    return { t, checklist, dimensions, activeDim, dimItems, dimKeys, fileInput, error,
-             cabinetFiles, showCabinetModal, cabinetTargetCode,
-             founderId, projectId, router, updateStatus, addFile, removeFile,
-             openCabinetModal, pickCabinetFile, statusColor, riskLabel };
+    return { t, checklist, dimensions, activeDim, dimItems, dimKeys, error,
+             dragOver, uploading, founderId, projectId, router,
+             updateStatus, onFileInput, onDrop, onDragOver, onDragLeave, removeFile,
+             riskLabel };
   },
   template: `
     <div class="page">
@@ -78,6 +93,7 @@ window.FounderDetail = {
         <button class="btn-ghost" @click="router.push('/project/' + projectId + '/founders')">← 返回</button>
         <h2>创始人背景核查</h2>
       </div>
+      <div class="error" v-if="error">{{ error }}</div>
       <div class="dim-tabs">
         <button v-for="dk in dimKeys" :key="dk"
           :class="['dim-tab', activeDim === dk ? 'active' : '']"
@@ -103,37 +119,25 @@ window.FounderDetail = {
             <textarea v-if="item.item_type === 'statement' || item.statement !== undefined"
               v-model="item.statement" @blur="updateStatus(item)"
               class="input statement-input" rows="2" :placeholder="t('ldd_statement')"></textarea>
+
             <div class="file-list" v-if="item.files && item.files.length">
               <div class="file-entry" v-for="f in item.files" :key="f.id">
                 📄 {{ f.file_name }}
                 <button class="btn-icon-danger" @click="removeFile(f.id)">✕</button>
               </div>
             </div>
-            <div class="add-file-row" v-if="item.item_type === 'file'">
-              <input v-model="fileInput[item.code]" class="input input-sm" placeholder="粘贴文件路径..." @keyup.enter="addFile(item)">
-              <button class="btn-sm" @click="addFile(item)">添加</button>
-              <button class="btn-ghost" style="font-size:12px;padding:4px 8px;" @click="openCabinetModal(item.code)"
-                title="从文件柜选择">📁</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Cabinet file picker modal -->
-      <div class="modal-overlay" v-if="showCabinetModal" @click.self="showCabinetModal = false">
-        <div class="modal card">
-          <div class="modal-header">
-            <span>从文件柜选择</span>
-            <button class="btn-ghost" @click="showCabinetModal = false">✕</button>
-          </div>
-          <div class="modal-body">
-            <div class="empty" v-if="cabinetFiles.length === 0">文件柜中暂无文件</div>
-            <div class="file-pick-list">
-              <div class="file-pick-item" v-for="f in cabinetFiles" :key="f.id"
-                @click="pickCabinetFile(f)">
-                📄 {{ f.file_name }}
-                <span class="file-cat-badge" v-if="f.category_name">{{ f.category_name }}</span>
-              </div>
+            <div v-if="item.item_type === 'file'"
+              :class="['upload-drop-zone', dragOver[item.code] ? 'drag-active' : '']"
+              @dragover="onDragOver(item, $event)"
+              @dragleave="onDragLeave(item)"
+              @drop="onDrop(item, $event)">
+              <span v-if="uploading[item.code]">上传中...</span>
+              <span v-else>拖拽文件到此处，或
+                <label class="upload-link">点击选择
+                  <input type="file" multiple style="display:none;" @change="onFileInput(item, $event)">
+                </label>
+              </span>
             </div>
           </div>
         </div>

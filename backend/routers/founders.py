@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
+import os, shutil
 from ..database import get_db
 
 router = APIRouter()
@@ -57,6 +58,20 @@ FOUNDER_CHECKLIST = [
     {"code": "F1", "dimension": "F", "title": "与前创业项目投资人/股东签署的协议", "title_en": "Agreements with prior startup investors/shareholders", "item_type": "file", "risk_level": "medium"},
     {"code": "F2", "dimension": "F", "title": "前创业项目的退出文件（股权转让协议、注销文件等）", "title_en": "Exit documents from prior startup (equity transfer, dissolution, etc.)", "item_type": "file", "risk_level": "medium"},
     {"code": "F3", "dimension": "F", "title": "是否存在未了结的债务或纠纷", "title_en": "Any outstanding debts or disputes from prior startup", "item_type": "statement", "risk_level": "high"},
+    # G: 教育背景
+    {"code": "G1", "dimension": "G", "title": "最高学历证明（毕业证书）", "title_en": "Highest degree certificate", "item_type": "file", "risk_level": "low"},
+    {"code": "G2", "dimension": "G", "title": "学位证书", "title_en": "Academic degree certificate", "item_type": "file", "risk_level": "low"},
+    {"code": "G3", "dimension": "G", "title": "海外学历认证（如适用）", "title_en": "Overseas degree verification (if applicable)", "item_type": "file", "risk_level": "low"},
+    # H: 个人财务状况
+    {"code": "H1", "dimension": "H", "title": "重大个人债务声明（超过50万元或等值外币）", "title_en": "Material personal debt disclosure (>CNY 500k or equivalent)", "item_type": "statement", "risk_level": "high"},
+    {"code": "H2", "dimension": "H", "title": "个人破产或资不抵债记录", "title_en": "Personal bankruptcy or insolvency record", "item_type": "statement", "risk_level": "high"},
+    {"code": "H3", "dimension": "H", "title": "对外担保情况（为他人债务提供担保）", "title_en": "Personal guarantees provided for third-party debts", "item_type": "statement", "risk_level": "high"},
+    {"code": "H4", "dimension": "H", "title": "是否存在税务欠缴或税务处罚记录", "title_en": "Any outstanding tax liabilities or tax penalties", "item_type": "statement", "risk_level": "medium"},
+    # I: 其他重大事项
+    {"code": "I1", "dimension": "I", "title": "是否持有境外永久居留权或国籍（绿卡等）", "title_en": "Holds foreign permanent residency or citizenship (green card, etc.)", "item_type": "statement", "risk_level": "medium"},
+    {"code": "I2", "dimension": "I", "title": "是否存在政治敏感关联（现任/前任政府职务、近亲属任职情况）", "title_en": "Political sensitivity (current/former government roles, close relatives in office)", "item_type": "statement", "risk_level": "medium"},
+    {"code": "I3", "dimension": "I", "title": "是否受到任何行业禁入或资格限制", "title_en": "Subject to any industry ban or qualification restriction", "item_type": "statement", "risk_level": "high"},
+    {"code": "I4", "dimension": "I", "title": "其他需主动披露的重大事项", "title_en": "Other material matters for voluntary disclosure", "item_type": "statement", "risk_level": "medium"},
 ]
 
 DIMENSION_LABELS = {
@@ -66,6 +81,9 @@ DIMENSION_LABELS = {
     "D": {"zh": "对外投资与任职", "en": "External Investments & Positions"},
     "E": {"zh": "纠纷与诉讼", "en": "Disputes & Litigation"},
     "F": {"zh": "前创业项目", "en": "Prior Startups"},
+    "G": {"zh": "教育背景", "en": "Education"},
+    "H": {"zh": "个人财务状况", "en": "Personal Finances"},
+    "I": {"zh": "其他重大事项", "en": "Other Material Matters"},
 }
 
 @router.get("/projects/{project_id}/founders")
@@ -168,7 +186,52 @@ def list_founder_files(founder_id: int):
 @router.delete("/founder-files/{file_id}")
 def delete_founder_file(file_id: int):
     db = get_db()
+    row = db.execute("SELECT file_path FROM founder_files WHERE id=?", (file_id,)).fetchone()
     db.execute("DELETE FROM founder_files WHERE id=?", (file_id,))
     db.commit()
     db.close()
+    # remove physical file if it was uploaded
+    if row and row["file_path"] and os.path.isfile(row["file_path"]):
+        try: os.remove(row["file_path"])
+        except Exception: pass
     return {"ok": True}
+
+@router.post("/founders/{founder_id}/upload", status_code=201)
+async def upload_founder_file(
+    founder_id: int,
+    item_code: str = Form(""),
+    file: UploadFile = File(...)
+):
+    db = get_db()
+    founder = db.execute(
+        "SELECT f.id, f.name, p.root_path FROM founders f JOIN projects p ON f.project_id=p.id WHERE f.id=?",
+        (founder_id,)
+    ).fetchone()
+    if not founder:
+        db.close()
+        raise HTTPException(404, "创始人不存在")
+
+    safe_name = founder["name"].replace("/", "_").replace("\\", "_").strip() or f"founder_{founder_id}"
+    upload_dir = os.path.join(founder["root_path"], "_founders", safe_name)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    dest = os.path.join(upload_dir, file.filename)
+    # avoid collision
+    base, ext = os.path.splitext(file.filename)
+    n = 2
+    while os.path.exists(dest):
+        dest = os.path.join(upload_dir, f"{base}_({n}){ext}")
+        n += 1
+
+    content = await file.read()
+    with open(dest, "wb") as f_out:
+        f_out.write(content)
+
+    cur = db.execute(
+        "INSERT INTO founder_files (founder_id, item_code, file_name, file_path, notes) VALUES (?,?,?,?,?)",
+        (founder_id, item_code or None, file.filename, dest, None)
+    )
+    db.commit()
+    fid = cur.lastrowid
+    db.close()
+    return {"id": fid, "file_name": file.filename, "file_path": dest}

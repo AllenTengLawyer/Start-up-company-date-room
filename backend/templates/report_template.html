@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="{{ labels.html_lang | default('zh') }}">
 <head>
 <meta charset="UTF-8">
-<title>DD就绪报告 - {{ project.name }}</title>
+<title>{{ labels.title | default('DD就绪报告') }} - {{ project.name }}</title>
 <style>
   body { font-family: "Microsoft YaHei", "SimHei", Arial, sans-serif; font-size: 12px; color: #333; margin: 0; padding: 20px; }
   h1 { font-size: 20px; color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 8px; }
@@ -36,21 +36,21 @@
 </style>
 </head>
 <body>
-<h1>法律尽职调查就绪报告</h1>
+<h1>{{ labels.h1 | default('法律尽职调查就绪报告') }}</h1>
 <div class="meta">
-  公司：{{ project.name }} &nbsp;|&nbsp;
-  生成时间：{{ generated_at }} &nbsp;|&nbsp;
-  仅供内部使用
+  {{ labels.meta_company | default('公司') }}：{{ project.name }} &nbsp;|&nbsp;
+  {{ labels.meta_generated_at | default('生成时间') }}：{{ generated_at }} &nbsp;|&nbsp;
+  {{ labels.meta_internal | default('仅供内部使用') }}
 </div>
 
 <div class="score-box">
   <div class="score-num">{{ score_pct }}%</div>
-  <div class="score-label">DD 就绪度评分</div>
+  <div class="score-label">{{ labels.score_label | default('DD 就绪度评分') }}</div>
   <div class="stats">
-    <div class="stat stat-provided"><div class="stat-n">{{ provided }}</div><div>已提供</div></div>
-    <div class="stat stat-partial"><div class="stat-n">{{ partial }}</div><div>部分提供</div></div>
-    <div class="stat stat-pending"><div class="stat-n">{{ pending }}</div><div>未提供</div></div>
-    <div class="stat stat-na"><div class="stat-n">{{ na }}</div><div>不适用</div></div>
+    <div class="stat stat-provided"><div class="stat-n">{{ provided }}</div><div>{{ labels.stat_provided | default('已提供') }}</div></div>
+    <div class="stat stat-partial"><div class="stat-n">{{ partial }}</div><div>{{ labels.stat_partial | default('部分提供') }}</div></div>
+    <div class="stat stat-pending"><div class="stat-n">{{ pending }}</div><div>{{ labels.stat_pending | default('未提供') }}</div></div>
+    <div class="stat stat-na"><div class="stat-n">{{ na }}</div><div>{{ labels.stat_na | default('不适用') }}</div></div>
   </div>
 </div>
 
@@ -59,11 +59,12 @@
 <table>
   <thead>
     <tr>
-      <th style="width:6%">编号</th>
-      <th style="width:38%">事项</th>
-      <th style="width:8%">风险</th>
-      <th style="width:10%">状态</th>
-      <th style="width:38%">已提供文件 / 说明</th>
+      <th style="width:6%">{{ labels.th_no | default('编号') }}</th>
+      <th style="width:34%">{{ labels.th_item | default('事项') }}</th>
+      <th style="width:8%">{{ labels.th_risk | default('风险') }}</th>
+      <th style="width:10%">{{ labels.th_status | default('状态') }}</th>
+      <th style="width:22%">{{ labels.th_files | default('已提供文件') }}</th>
+      <th style="width:20%">{{ labels.th_notes | default('说明') }}</th>
     </tr>
   </thead>
   <tbody>
@@ -72,21 +73,42 @@
       <td>{{ item.item_no }}</td>
       <td>{{ item.title }}</td>
       <td>
-        {% if item.risk_level == 'high' %}<span class="badge badge-high">高</span>
-        {% elif item.risk_level == 'medium' %}<span class="badge badge-medium">中</span>
-        {% else %}<span class="badge badge-low">低</span>{% endif %}
+        {% if item.risk_level == 'high' %}<span class="badge badge-high">{{ labels.risk_high | default('高') }}</span>
+        {% elif item.risk_level == 'medium' %}<span class="badge badge-medium">{{ labels.risk_medium | default('中') }}</span>
+        {% else %}<span class="badge badge-low">{{ labels.risk_low | default('低') }}</span>{% endif %}
       </td>
       <td>
-        {% if item.status == 'provided' %}<span class="status-provided">✓ 已提供</span>
-        {% elif item.status == 'partial' %}<span class="status-partial">△ 部分提供</span>
-        {% elif item.status == 'na' %}<span class="status-na">— 不适用</span>
-        {% else %}<span class="status-pending">✗ 未提供</span>{% endif %}
+        {% if item.status == 'provided' %}<span class="status-provided">{{ labels.status_provided | default('✓ 已提供') }}</span>
+        {% elif item.status == 'partial' %}<span class="status-partial">{{ labels.status_partial | default('△ 部分提供') }}</span>
+        {% elif item.status == 'na' %}<span class="status-na">{{ labels.status_na | default('— 不适用') }}</span>
+        {% else %}<span class="status-pending">{{ labels.status_pending | default('✗ 未提供') }}</span>{% endif %}
       </td>
       <td>
         {% if item.files %}
-        <div class="files-list">{% for f in item.files %}📄 {{ f }}<br>{% endfor %}</div>
+        <div class="files-list">
+          {% for f in item.files %}
+            {% if f is string %}
+              📄 {{ f }}<br>
+            {% else %}
+              📄 {{ f.file_name }}<br>
+            {% endif %}
+          {% endfor %}
+        </div>
         {% endif %}
-        {% if item.statement %}<div style="font-size:10px;color:#4a5568;margin-top:2px;">{{ item.statement }}</div>{% endif %}
+      </td>
+      <td>
+        {% if item.files %}
+        <div class="files-list">
+          {% for f in item.files %}
+            {% if f is string %}
+              <br>
+            {% else %}
+              {{ f.notes }}<br>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if item.statement %}<div style="font-size:10px;color:#4a5568;margin-top:4px;"><b>{{ labels.item_statement | default('条目说明') }}：</b>{{ item.statement }}</div>{% endif %}
       </td>
     </tr>
     {% endfor %}
